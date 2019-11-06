@@ -1,0 +1,6 @@
+# Spyer project settings
+.spyderproject
+.spyproject
+
+#directories
+/data/*
