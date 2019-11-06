@@ -15,3 +15,7 @@ def load_drrsa_file():
 """ Retrieve consolidated AOS UIC export file """
 def load_aos_file():
     return pd.read_csv("./data/aos_uic_tree_ac_fy21.csv")
+
+""" Retrieve FMS UIC Rollup with Military Authorizations """
+def load_fms_file():
+    return pd.read_csv("./data/FY20_AC_UIC_and_SUBCO_UIC_Rollup.csv")
