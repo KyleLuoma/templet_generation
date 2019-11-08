@@ -16,20 +16,23 @@ TEMPLET_PERCENT = 0.15
 
 
 def main():
-    global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index
+    global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic
     
+    """ Load """
     aos_uic = load_data.load_aos_file()
     drrsa_uic = load_data.load_drrsa_file()
     fms_uic = load_data.load_fms_file()
     HD_map = load_data.load_HD_map()
     
+    """ Transform """
     prepare_fms_file()
     prepare_HD_map()
     prepare_aos_uic_file()
     prepare_drrsa_uic_file()
     
-    hduic_index = make_drrsa_hduic_index(PUD_ONLY = True)
-    aos_drrsa_hduic_check()
+    """ Analyze """
+    hduic_index = make_drrsa_hduic_index(PUD_ONLY = False)
+    missing_aos_duic = aos_drrsa_hduic_check()
 
 """
 Relies on global dataframe fms_uic
@@ -83,7 +86,10 @@ def make_drrsa_hduic_index(PUD_ONLY):
 
 def aos_drrsa_hduic_check():
     aos_uic['HAS_DUIC'] = False
-    aos_uic.HAS_DUIC = aos_uic.UIC_PUD.isin(hduic_index)
+    aos_uic.HAS_DUIC = aos_uic.EXPECTED_HDUIC.isin(hduic_index)
+    missing_uics = aos_uic[["UIC", "EXPECTED_HDUIC", "HAS_DUIC"]].where(aos_uic.HAS_DUIC == False).dropna()
+    return missing_uics.where(missing_uics.EXPECTED_HDUIC != "").dropna()
+
 
 if (__name__ == "__main__"): main()
 
