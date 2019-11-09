@@ -17,7 +17,7 @@ TEMPLET_PERCENT = 0.15
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
-    fms_uics_not_in_aos, aos_uics_not_in_fms
+    fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets
     
     """ Load """
     aos_uic = load_data.load_aos_file()
@@ -36,11 +36,13 @@ def main():
     missing_aos_duic = aos_drrsa_hduic_check()
     fms_uics_not_in_aos = fms_uic_not_in_aos()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
+    aos_hduic_templets = gen_aos_hduic_templets()
     
     """ Export """
     missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos.csv")
     fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos.csv")
     aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms.csv")
+    aos_hduic_templets.to_csv("./export/aos_hduic_templts.csv")
     
 
 """
@@ -155,6 +157,24 @@ def aos_uic_not_in_fms():
     aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
+
+"""
+Create a dataframe report of hduics and templets to add to aos
+"""
+def gen_aos_hduic_templets():
+    aos_hduic_templets = aos_uic[["UIC", "EXPECTED_HDUIC", "HAS_DUIC", "IN_FMS"]].where(
+            aos_uic.EXPECTED_HDUIC != "")
+    fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
+    fms_auths_templets.set_index("LOWEST_UIC", drop = True, inplace = True)
+    aos_hduic_templets["AUTH_MIL"] = 0
+    aos_hduic_templets["TEMPLET_QTY"] = 0
+    for row in aos_hduic_templets.itertuples():
+        if not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist():
+            aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
+                    fms_auths_templets.loc[row.UIC].AUTHMIL)
+            aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
+                    fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
+    return aos_hduic_templets
 
 if (__name__ == "__main__"): main()
 
