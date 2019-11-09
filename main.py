@@ -16,7 +16,8 @@ TEMPLET_PERCENT = 0.15
 
 
 def main():
-    global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic
+    global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
+    fms_uics_not_in_aos, aos_uics_not_in_fms
     
     """ Load """
     aos_uic = load_data.load_aos_file()
@@ -33,6 +34,12 @@ def main():
     """ Analyze """
     hduic_index = make_drrsa_hduic_index(PUD_ONLY = False)
     missing_aos_duic = aos_drrsa_hduic_check()
+    fms_uics_not_in_aos = fms_uic_not_in_aos()
+    aos_uics_not_in_fms = aos_uic_not_in_fms()
+    
+    """ Export """
+    
+    
 
 """
 Relies on global dataframe fms_uic
@@ -46,7 +53,7 @@ from fms personnel detail line report with the following selections:
     
 """
 def prepare_fms_file():
-    fms_uic.LOWEST_UIC = ""
+    fms_uic["LOWEST_UIC"] = ""
     fms_uic.TEMPLET_QTY = 0
     
     """Consolidate UIC or sub code UIC into one column named LOWEST_UIC"""
@@ -57,7 +64,8 @@ def prepare_fms_file():
             fms_uic.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
         
         """Calculate baseline templet quantity for each row"""
-        fms_uic.at[row.Index, 'TEMPLET_QTY'] = math.ceil(row.AUTHMIL * TEMPLET_PERCENT)
+        fms_uic.at[row.Index, 'TEMPLET_QTY'] = math.ceil(
+                row.AUTHMIL * TEMPLET_PERCENT)
 
 """ 
 Relies on global dataframe HD_map
@@ -84,7 +92,8 @@ def prepare_aos_uic_file():
     for row in aos_uic.itertuples():
         aos_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
         if (HD_map.index.isin([row.UIC[4:6]]).any()):
-            aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = row.UIC[0:4] + HD_map.loc[row.UIC[4:6]].HDUIC
+            aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = (row.UIC[0:4] + 
+                      HD_map.loc[row.UIC[4:6]].HDUIC)
         
 """
 Relies on global dataframe drrsa_uic
@@ -119,9 +128,31 @@ Returns: dataframe consisting of the AOS UICs where its HDUIC does not exist in 
 def aos_drrsa_hduic_check():
     aos_uic['HAS_DUIC'] = False
     aos_uic.HAS_DUIC = aos_uic.EXPECTED_HDUIC.isin(hduic_index)
-    missing_uics = aos_uic[["UIC", "EXPECTED_HDUIC", "HAS_DUIC"]].where(aos_uic.HAS_DUIC == False).dropna()
+    missing_uics = aos_uic[["UIC", "EXPECTED_HDUIC", "HAS_DUIC"]].where(
+            aos_uic.HAS_DUIC == False).dropna()
     return missing_uics.where(missing_uics.EXPECTED_HDUIC != "").dropna()
 
+"""
+Relies on aos_uic and fms_uic global dataframes
+Adds a Series to fms_uic DF of UICs in FMS that are not in AOS and returns
+a dataframe report of fms uics not in aos
+"""
+def fms_uic_not_in_aos():
+    fms_uic['IN_AOS'] = False
+    fms_uic.IN_AOS = fms_uic.LOWEST_UIC.isin(aos_uic.UIC)
+    return fms_uic[["LOWEST_UIC", "COMPO", "CMD", "UNITNAME"]].where(
+            fms_uic.IN_AOS == False).dropna()
+
+"""
+Relies on fms_uic and aos_uic global dataframs
+Addes a series to aos_uic DF of UICs in AOS that are not in AOS and returns
+a dataframe report of aos uics not in fms
+"""
+def aos_uic_not_in_fms():
+    aos_uic['IN_FMS'] = False
+    aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
+    return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
+            aos_uic.IN_FMS == False).dropna()
 
 if (__name__ == "__main__"): main()
 
