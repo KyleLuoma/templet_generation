@@ -38,7 +38,9 @@ def main():
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     
     """ Export """
-    
+    missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos.csv")
+    fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos.csv")
+    aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms.csv")
     
 
 """
