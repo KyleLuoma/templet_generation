@@ -13,6 +13,7 @@ import math
 import load_data
 
 TEMPLET_PERCENT = 0.15
+MIN_TEMPLETS = 3
 
 
 def main():
@@ -68,8 +69,8 @@ def prepare_fms_file():
             fms_uic.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
         
         """Calculate baseline templet quantity for each row"""
-        fms_uic.at[row.Index, 'TEMPLET_QTY'] = math.ceil(
-                row.AUTHMIL * TEMPLET_PERCENT)
+        fms_uic.at[row.Index, 'TEMPLET_QTY'] = max(
+                math.ceil(row.AUTHMIL * TEMPLET_PERCENT), MIN_TEMPLETS)
 
 """ 
 Relies on global dataframe HD_map
@@ -162,19 +163,26 @@ def aos_uic_not_in_fms():
 Create a dataframe report of hduics and templets to add to aos
 """
 def gen_aos_hduic_templets():
-    aos_hduic_templets = aos_uic[["UIC", "EXPECTED_HDUIC", "HAS_DUIC", "IN_FMS"]].where(
+    aos_hduic_templets = aos_uic[["UIC", "EXPECTED_HDUIC", "DEPT_NAME", 
+                                  "SHORT_NAME", "ANAME", "HAS_DUIC", 
+                                  "IN_FMS"]].where(
             aos_uic.EXPECTED_HDUIC != "")
-    fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
-    fms_auths_templets.set_index("LOWEST_UIC", drop = True, inplace = True)
     aos_hduic_templets["AUTH_MIL"] = 0
     aos_hduic_templets["TEMPLET_QTY"] = 0
+    aos_hduic_templets.set_index("UIC", drop = False, inplace = True)
+    
+    fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
+    fms_auths_templets.set_index("LOWEST_UIC", drop = True, inplace = True)
+    
     for row in aos_hduic_templets.itertuples():
-        if not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist():
-            aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
-                    fms_auths_templets.loc[row.UIC].AUTHMIL)
-            aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
-                    fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
-    return aos_hduic_templets
+        if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
+            if (fms_auths_templets.AUTHMIL.loc[row.UIC] > 0):
+                aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
+                        fms_auths_templets.loc[row.UIC].AUTHMIL)
+                aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
+                        fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
+                
+    return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
 
 if (__name__ == "__main__"): main()
 
