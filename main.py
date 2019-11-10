@@ -18,7 +18,7 @@ MIN_TEMPLETS = 3
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
-    fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets
+    fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects
     
     """ Load """
     aos_uic = load_data.load_aos_file()
@@ -38,12 +38,14 @@ def main():
     fms_uics_not_in_aos = fms_uic_not_in_aos()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     aos_hduic_templets = gen_aos_hduic_templets()
+    templet_rejects = fms_uic_not_in_templet_file()
     
     """ Export """
     missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos.csv")
     fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos.csv")
     aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms.csv")
     aos_hduic_templets.to_csv("./export/aos_hduic_templts.csv")
+    templet_rejects.to_csv("./export/templet_reject_report.csv")
     
 
 """
@@ -145,7 +147,7 @@ a dataframe report of fms uics not in aos
 def fms_uic_not_in_aos():
     fms_uic['IN_AOS'] = False
     fms_uic.IN_AOS = fms_uic.LOWEST_UIC.isin(aos_uic.UIC)
-    return fms_uic[["LOWEST_UIC", "COMPO", "CMD", "UNITNAME"]].where(
+    return fms_uic[["LOWEST_UIC", "COMPO", "CMD", "UNITNAME", "AUTHMIL"]].where(
             fms_uic.IN_AOS == False).dropna()
 
 """
@@ -158,6 +160,11 @@ def aos_uic_not_in_fms():
     aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
+    
+def fms_uic_not_in_templet_file():
+    fms_uic["TEMPLETS_GENERATED"] = False
+    fms_uic.TEMPLETS_GENERATED = fms_uic.LOWEST_UIC.isin(aos_hduic_templets.UIC)
+    return fms_uic.where(fms_uic.TEMPLETS_GENERATED == False).dropna()
 
 """
 Create a dataframe report of hduics and templets to add to aos
@@ -175,13 +182,19 @@ def gen_aos_hduic_templets():
     fms_auths_templets.set_index("LOWEST_UIC", drop = True, inplace = True)
     
     for row in aos_hduic_templets.itertuples():
-        if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
+        #if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
+        if (not pd.isna(row.UIC) and row.IN_FMS):
             if (fms_auths_templets.AUTHMIL.loc[row.UIC] > 0):
                 aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
                         fms_auths_templets.loc[row.UIC].AUTHMIL)
                 aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
                         fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
-                
+    
+    print("Finished generating templets\n" +
+          "AUTHs in FMS file: " + str(fms_uic.AUTHMIL.sum()) + "\n" +
+          "AUTHS in TMP file: " + str(aos_hduic_templets.AUTH_MIL.sum()) + "\n" +
+          "            Delta: " + str(fms_uic.AUTHMIL.sum() - aos_hduic_templets.AUTH_MIL.sum()))
+    
     return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
 
 if (__name__ == "__main__"): main()
