@@ -11,10 +11,11 @@ import pandas as pd
 import numpy as np
 import math
 import load_data
+import utility
 
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
-
+TIMESTAMP = utility.get_file_timestamp()
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
@@ -41,11 +42,14 @@ def main():
     templet_rejects = fms_uic_not_in_templet_file()
     
     """ Export """
-    missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos.csv")
-    fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos.csv")
-    aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms.csv")
-    aos_hduic_templets.to_csv("./export/aos_hduic_templts.csv")
-    templet_rejects.to_csv("./export/templet_reject_report.csv")
+    missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos" + TIMESTAMP + ".csv")
+    fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos" + TIMESTAMP + ".csv")
+    aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms" + TIMESTAMP + ".csv")
+    aos_hduic_templets.to_csv("./export/aos_hduic_templts"   + TIMESTAMP + ".csv")
+    templet_rejects.to_csv("./export/templet_reject_report"  + TIMESTAMP + ".csv")
+    fms_uic.to_csv("./export/fms_uic"                        + TIMESTAMP + ".csv")
+    aos_uic.to_csv("./export/aos_uic"                        + TIMESTAMP + ".csv")
+    drrsa_uic.to_csv("./export/drrsa_uic"                    + TIMESTAMP + ".csv")
     
 
 """
@@ -161,6 +165,10 @@ def aos_uic_not_in_fms():
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
     
+"""
+After processing templet generation, checks the output of templet generation
+to see if there are UICs missing from the templet generation file.
+"""    
 def fms_uic_not_in_templet_file():
     fms_uic["TEMPLETS_GENERATED"] = False
     fms_uic.TEMPLETS_GENERATED = fms_uic.LOWEST_UIC.isin(aos_hduic_templets.UIC)
@@ -170,30 +178,64 @@ def fms_uic_not_in_templet_file():
 Create a dataframe report of hduics and templets to add to aos
 """
 def gen_aos_hduic_templets():
+    debug_uic = "WG2CA0" #### FOR UIC SMOKE TEST ###
+    is_debug_uic = False
+    
     aos_hduic_templets = aos_uic[["UIC", "EXPECTED_HDUIC", "DEPT_NAME", 
-                                  "SHORT_NAME", "ANAME", "HAS_DUIC", 
+                                  "SHORT_NAME", "HAS_DUIC", 
                                   "IN_FMS"]].where(
             aos_uic.EXPECTED_HDUIC != "")
     aos_hduic_templets["AUTH_MIL"] = 0
     aos_hduic_templets["TEMPLET_QTY"] = 0
     aos_hduic_templets.set_index("UIC", drop = False, inplace = True)
     
+    if (debug_uic in aos_hduic_templets.UIC.tolist()):
+        print(debug_uic + " is in aos_hduic_templets dataframe")
+    else:
+        print(debug_uic + " not in aos_hduic_templets dataframe")
+    
+    aos_hduic_templets.to_csv("./export/diagnosis_aoshduictemplets" + TIMESTAMP + ".csv")
+    
     fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
-    fms_auths_templets.set_index("LOWEST_UIC", drop = True, inplace = True)
+    fms_auths_templets.set_index("LOWEST_UIC", drop = False, inplace = True)
+    
+    if (debug_uic in fms_auths_templets.LOWEST_UIC.tolist()):
+        print(debug_uic + " is in fms_auths_templets")
+    else:
+        print(debug_uic + " not in fms_auths_templets")
+    
+    fms_auths_templets.to_csv("./export/diagnosis_fmsauthstemplets" + TIMESTAMP + ".csv")   
     
     for row in aos_hduic_templets.itertuples():
         #if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
+        if (row.Index == debug_uic): 
+            print("Iterating over " + debug_uic) 
+            is_debug_uic = True
+            
         if (not pd.isna(row.UIC) and row.IN_FMS):
-            if (fms_auths_templets.AUTHMIL.loc[row.UIC] > 0):
+            if (is_debug_uic): print(debug_uic + " Passed isna and infms check")
+            if (fms_auths_templets.AUTHMIL.loc[row.Index] > 0):
                 aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
                         fms_auths_templets.loc[row.UIC].AUTHMIL)
                 aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
                         fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
+                if (is_debug_uic): print(debug_uic + " passed fms auths > 0 check")
+            else:
+                if (is_debug_uic): print(debug_uic + " failed fms auths > 0 check")
+        else:
+            if (is_debug_uic): print("WG2CA0 Failed isna and infms check")
+        is_debug_uic = False
+        
+    if (debug_uic in aos_hduic_templets.UIC.tolist()):
+        print (debug_uic + " is in aos_hduic_templets dataframe")
+    else:
+        print (debug_uic + " not in aos_hduic_templets datframe")
     
     print("Finished generating templets\n" +
           "AUTHs in FMS file: " + str(fms_uic.AUTHMIL.sum()) + "\n" +
           "AUTHS in TMP file: " + str(aos_hduic_templets.AUTH_MIL.sum()) + "\n" +
           "            Delta: " + str(fms_uic.AUTHMIL.sum() - aos_hduic_templets.AUTH_MIL.sum()))
+
     
     return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
 
