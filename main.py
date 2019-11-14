@@ -16,16 +16,19 @@ import utility
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
+EXPORT = True
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
-    fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects
+    fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects, \
+    emilpo_uic
     
     """ Load """
     aos_uic = load_data.load_aos_file()
     drrsa_uic = load_data.load_drrsa_file()
     fms_uic = load_data.load_fms_file()
     HD_map = load_data.load_HD_map()
+    emilpo_uic = load_data.load_emilpo()
     
     """ Transform """
     prepare_fms_file()
@@ -38,19 +41,23 @@ def main():
     missing_aos_duic = aos_drrsa_hduic_check()
     fms_uics_not_in_aos = fms_uic_not_in_aos()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
+    emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
     aos_hduic_templets = gen_aos_hduic_templets()
     templet_rejects = fms_uic_not_in_templet_file()
+    templet_short = emilpo_assigned_delta()
     
     """ Export """
-    missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos" + TIMESTAMP + ".csv")
-    fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos" + TIMESTAMP + ".csv")
-    aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms" + TIMESTAMP + ".csv")
-    aos_hduic_templets.to_csv("./export/aos_hduic_templts"   + TIMESTAMP + ".csv")
-    templet_rejects.to_csv("./export/templet_reject_report"  + TIMESTAMP + ".csv")
-    fms_uic.to_csv("./export/fms_uic"                        + TIMESTAMP + ".csv")
-    aos_uic.to_csv("./export/aos_uic"                        + TIMESTAMP + ".csv")
-    drrsa_uic.to_csv("./export/drrsa_uic"                    + TIMESTAMP + ".csv")
-    
+    if(EXPORT):
+        missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos"       + TIMESTAMP + ".csv")
+        fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos"       + TIMESTAMP + ".csv")
+        aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms"       + TIMESTAMP + ".csv")
+        emilpo_uics_not_in_aos_fms_drrsa.to_csv("./export/emilpo_uic_not_in_aos" + TIMESTAMP + ".csv")
+        aos_hduic_templets.to_csv("./export/aos_hduic_templts"         + TIMESTAMP + ".csv")
+        templet_rejects.to_csv("./export/templet_reject_report"        + TIMESTAMP + ".csv")
+        fms_uic.to_csv("./export/fms_uic"                              + TIMESTAMP + ".csv")
+        aos_uic.to_csv("./export/aos_uic"                              + TIMESTAMP + ".csv")
+        drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
+        emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
 
 """
 Relies on global dataframe fms_uic
@@ -156,7 +163,7 @@ def fms_uic_not_in_aos():
 
 """
 Relies on fms_uic and aos_uic global dataframs
-Addes a series to aos_uic DF of UICs in AOS that are not in AOS and returns
+Adds a series to aos_uic DF of UICs in AOS that are not in AOS and returns
 a dataframe report of aos uics not in fms
 """
 def aos_uic_not_in_fms():
@@ -164,6 +171,21 @@ def aos_uic_not_in_fms():
     aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
+    
+"""
+Relies on aos_uic and emilpo_uic global dataframes
+Addes a series to emilpo_uic DF of UICs in emilpo not in AOS and returns
+a dataframe report of emilpo UICs not in AOS
+"""
+def emilpo_uic_not_in_aos_fms_drrsa():
+    emilpo_uic['IN_AOS'] = False
+    emilpo_uic['IN_FMS'] = False
+    emilpo_uic['IN_DRRSA'] = False    
+    emilpo_uic.IN_AOS = emilpo_uic.UIC.isin(aos_uic.UIC)
+    emilpo_uic.IN_FMS = emilpo_uic.UIC.isin(fms_uic.LOWEST_UIC)
+    emilpo_uic.IN_DRRSA = emilpo_uic.UIC.isin(drrsa_uic.UIC)
+    return emilpo_uic[["UIC", "ASSIGNED", "IN_AUTH", "EXCESS"]].where(
+            emilpo_uic.IN_AOS == False).dropna()
     
 """
 After processing templet generation, checks the output of templet generation
@@ -194,7 +216,7 @@ def gen_aos_hduic_templets():
     else:
         print(debug_uic + " not in aos_hduic_templets dataframe")
     
-    aos_hduic_templets.to_csv("./export/diagnosis_aoshduictemplets" + TIMESTAMP + ".csv")
+    if (EXPORT): aos_hduic_templets.to_csv("./export/diagnosis_aoshduictemplets" + TIMESTAMP + ".csv")
     
     fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
     fms_auths_templets.set_index("LOWEST_UIC", drop = False, inplace = True)
@@ -204,7 +226,7 @@ def gen_aos_hduic_templets():
     else:
         print(debug_uic + " not in fms_auths_templets")
     
-    fms_auths_templets.to_csv("./export/diagnosis_fmsauthstemplets" + TIMESTAMP + ".csv")   
+    if (EXPORT): fms_auths_templets.to_csv("./export/diagnosis_fmsauthstemplets" + TIMESTAMP + ".csv")   
     
     for row in aos_hduic_templets.itertuples():
         #if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
@@ -236,9 +258,17 @@ def gen_aos_hduic_templets():
           "AUTHS in TMP file: " + str(aos_hduic_templets.AUTH_MIL.sum()) + "\n" +
           "            Delta: " + str(fms_uic.AUTHMIL.sum() - aos_hduic_templets.AUTH_MIL.sum()))
 
-    
     return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
 
+"""
+Relies on aos_hduic_templets and emilpo_uic dataframes
+Compares aos_hduic_templets + auths to determine if some units have overstrength
+in excess of the designated percentage
+Adds column to aos_hduic_templets with emilpo assigned, assigned delta, assigned to auth and excess
+"""
+def emilpo_assigned_delta():
+    print("This is where I am going to compare emilpo assigned to auth + templets")
+    
 if (__name__ == "__main__"): main()
 
 

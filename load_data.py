@@ -23,3 +23,8 @@ def load_fms_file():
 """ Retrieve AA / SUBCODE to HD map """
 def load_HD_map():
     return pd.read_csv("./data/UIC_HD_MAP.csv")
+
+""" Retrieve EMILPO assignment rollup file """
+def load_emilpo():
+    return pd.read_csv("./data/emilpo_assigned_excess_11142019.csv")
+
