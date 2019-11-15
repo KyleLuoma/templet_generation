@@ -16,12 +16,12 @@ import utility
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = True
+EXPORT = False
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
     fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects, \
-    emilpo_uic
+    emilpo_uic, templet_short
     
     """ Load """
     aos_uic = load_data.load_aos_file()
@@ -35,6 +35,7 @@ def main():
     prepare_HD_map()
     prepare_aos_uic_file()
     prepare_drrsa_uic_file()
+    prepare_emilpo_uic_file()
     
     """ Analyze """
     hduic_index = make_drrsa_hduic_index(PUD_ONLY = False)
@@ -123,6 +124,16 @@ def prepare_drrsa_uic_file():
     
     for row in drrsa_uic.itertuples():
         drrsa_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
+
+
+"""
+Relies on global dataframe emilpo_uic
+This file is a result of the emilpo assignment data etl sql v6 from
+MAJ Luoma
+"""
+def prepare_emilpo_uic_file():
+    emilpo_uic.set_index("UIC", drop = False, inplace = True)
+        
 
 """
 Relies on global dataframe drrsa_uic
@@ -268,6 +279,40 @@ Adds column to aos_hduic_templets with emilpo assigned, assigned delta, assigned
 """
 def emilpo_assigned_delta():
     print("This is where I am going to compare emilpo assigned to auth + templets")
+    aos_hduic_templets["EMILPO_ASGD_TOT"] = 0
+    aos_hduic_templets["EMILPO_ASGD_AUTHS"] = 0
+    aos_hduic_templets["EMILPO_ASGD_EXCESS"] = 0
+    aos_hduic_templets["CALCULATED_EXCESS"] = 0
+    aos_hduic_templets["DELTA_TEMPLET_CALCULATED_EXCESS"] = 0
+    aos_hduic_templets["DELTA_TEMPLET_EMILPO_EXCESS"] = 0
+    aos_hduic_templets["EMILPO_ADJUSTED_TEMPLET_QTY"] = aos_hduic_templets.TEMPLET_QTY
+    
+    for row in aos_hduic_templets.itertuples():
+        try:
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_TOT"] = (
+                    emilpo_uic.loc[row.UIC].ASSIGNED)
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS"] = (
+                    emilpo_uic.loc[row.UIC].IN_AUTH)
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS"] = (
+                    emilpo_uic.loc[row.UIC].EXCESS)
+            aos_hduic_templets.at[row.Index, "CALCULATED_EXCESS"] = (
+                    emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL)
+            aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_CALCULATED_EXCESS"] = max(
+                    (emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL) - row.TEMPLET_QTY, 0)
+            aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_EMILPO_EXCESS"] = max(
+                    emilpo_uic.loc[row.UIC].EXCESS - row.TEMPLET_QTY, 0)
+            aos_hduic_templets.at[row.Index, "EMILPO_ADJUSTED_TEMPLET_QTY"] = max(
+                            aos_hduic_templets.at[row.Index, "TEMPLET_QTY"],
+                            emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL - row.TEMPLET_QTY,
+                            emilpo_uic.loc[row.UIC].EXCESS - row.TEMPLET_QTY
+                        )
+        except Exception as err:
+            print("Error applying emilpo assigned to templet file for ", row.UIC, err)
+    
+    
+    
+                    
+    
     
 if (__name__ == "__main__"): main()
 
