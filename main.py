@@ -21,12 +21,13 @@ EXPORT = True
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
     fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects, \
-    emilpo_uic, templet_short
+    emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup
     
     """ Load """
     aos_uic = load_data.load_aos_file()
     drrsa_uic = load_data.load_drrsa_file()
     fms_uic = load_data.load_fms_file()
+    fms_lduic = load_data.load_fms_lduic_file()
     HD_map = load_data.load_HD_map()
     emilpo_uic = load_data.load_emilpo()
     
@@ -43,6 +44,7 @@ def main():
     fms_uics_not_in_aos = fms_uic_not_in_aos()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
+    lduic_assignment_rollup = rollup_lduic_assignments()
     aos_hduic_templets = gen_aos_hduic_templets()
     templet_rejects = fms_uic_not_in_templet_file()
     templet_short = emilpo_assigned_delta()
@@ -59,17 +61,27 @@ def main():
         aos_uic.to_csv("./export/aos_uic"                              + TIMESTAMP + ".csv")
         drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
         emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
+        lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
 
 """
-Relies on global dataframe fms_uic
+Relies on global dataframe fms_uic and fms_lduic
 Makes necessary transformations of fms export file. File should be exported
-from fms personnel detail line report with the following selections:
+fms_uic from fms personnel detail line report with the following selections:
     Compo = 1
     FY/Status = latest approved FY20 (or 21 when all are published)
     CMD = All
     UIC Name and SubCo Name boxes checked
     Summarize by Compo
-    
+fms_lduic from fms personnel detail line report with the following selections:
+    Compo = 1
+    FY/Status = latest approved FY20 or FY21
+    CMD = All
+    Compo, UIC Name, LDUIC Name, SubCo Name, Para Title/LDUIC and LDUIC Only checked
+    Import into excel and create pivot table with rows in order of:
+        CMD, UIC, FULLSUBCO, LDUIC, and SUM(AUTHMIL)
+        Tabular format, no subtotals or grand totals and repeat all rows 
+NOTE: fms_lduic contains a subset of authorizations that already exist in fms_uic
+
 """
 def prepare_fms_file():
     fms_uic["LOWEST_UIC"] = ""
@@ -85,6 +97,16 @@ def prepare_fms_file():
         """Calculate baseline templet quantity for each row"""
         fms_uic.at[row.Index, 'TEMPLET_QTY'] = max(
                 math.ceil(row.AUTHMIL * TEMPLET_PERCENT), MIN_TEMPLETS)
+      
+    fms_lduic.set_index("LDUIC", drop = False, inplace = True)
+    fms_lduic["LOWEST_UIC"] = ""    
+    for row in fms_lduic.itertuples():
+        if (pd.isna(row.FULLSUBCO)):
+            fms_lduic.at[row.Index, 'LOWEST_UIC'] = row.UIC
+            fms_lduic.at[row.Index, 'FULLSUBCO'] = 'NONE'
+        else:
+            fms_lduic.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
+        
 
 """ 
 Relies on global dataframe HD_map
@@ -132,7 +154,10 @@ This file is a result of the emilpo assignment data etl sql v6 from
 MAJ Luoma
 """
 def prepare_emilpo_uic_file():
-    emilpo_uic.set_index("UIC", drop = False, inplace = True)
+    emilpo_uic.ASSIGNED.fillna(0, inplace = True)   
+    emilpo_uic.IN_AUTH.fillna(0, inplace = True)
+    emilpo_uic.EXCESS.fillna(0, inplace = True)
+    emilpo_uic.set_index("UIC", drop = False, inplace = True)   
         
 
 """
@@ -184,17 +209,22 @@ def aos_uic_not_in_fms():
             aos_uic.IN_FMS == False).dropna()
     
 """
-Relies on aos_uic and emilpo_uic global dataframes
+Relies on aos_uic, fms_lduic and emilpo_uic global dataframes
 Addes a series to emilpo_uic DF of UICs in emilpo not in AOS and returns
 a dataframe report of emilpo UICs not in AOS
+
 """
 def emilpo_uic_not_in_aos_fms_drrsa():
     emilpo_uic['IN_AOS'] = False
-    emilpo_uic['IN_FMS'] = False
-    emilpo_uic['IN_DRRSA'] = False    
+    emilpo_uic['IN_FMS_UIC'] = False
+    emilpo_uic['IN_FMS_LDUIC'] = False
+    emilpo_uic['IN_DRRSA'] = False      
+    
     emilpo_uic.IN_AOS = emilpo_uic.UIC.isin(aos_uic.UIC)
-    emilpo_uic.IN_FMS = emilpo_uic.UIC.isin(fms_uic.LOWEST_UIC)
+    emilpo_uic.IN_FMS_UIC = emilpo_uic.UIC.isin(fms_uic.LOWEST_UIC)
+    emilpo_uic.IN_FMS_LDUIC = emilpo_uic.UIC.isin(fms_lduic.LDUIC)
     emilpo_uic.IN_DRRSA = emilpo_uic.UIC.isin(drrsa_uic.UIC)
+    
     return emilpo_uic[["UIC", "ASSIGNED", "IN_AUTH", "EXCESS"]].where(
             emilpo_uic.IN_AOS == False).dropna()
     
@@ -206,6 +236,36 @@ def fms_uic_not_in_templet_file():
     fms_uic["TEMPLETS_GENERATED"] = False
     fms_uic.TEMPLETS_GENERATED = fms_uic.LOWEST_UIC.isin(aos_hduic_templets.UIC)
     return fms_uic.where(fms_uic.TEMPLETS_GENERATED == False).dropna()
+
+"""
+After loading both emilpo_uic and fms_lduics, creates a df with rollup of
+assignments to FMS LDUICs using emilpo_uic assignment data
+Relies on emilpo_uic and fms_lduic dataframes
+Must be run after emilpo_uic_not_in_aos_fms_drrsa() function
+"""
+def rollup_lduic_assignments():
+    lduic_assignment_rollup = fms_uic[["LOWEST_UIC", "CMD"]].copy(deep = True)
+    lduic_assignment_rollup.set_index("LOWEST_UIC", drop = False, inplace = True)
+    lduic_assignment_rollup["LDUIC_AUTH"] = 0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_TOT"] = 0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_AUTH"] = 0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_EXCESS"] = 0
+    
+    assigned_sum = 0
+    
+    for row in fms_lduic.itertuples():
+        if (row.Index in emilpo_uic.UIC.tolist() and 
+                row.LOWEST_UIC in lduic_assignment_rollup.LOWEST_UIC.tolist()):
+            assigned_sum += emilpo_uic.loc[row.Index].ASSIGNED
+            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_TOT"] += (
+                    emilpo_uic.loc[row.Index].ASSIGNED)
+            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_AUTH"] += (
+                    emilpo_uic.loc[row.Index].IN_AUTH)
+            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_EXCESS"] += (
+                    emilpo_uic.loc[row.Index].EXCESS)
+        
+    print("rollup_lduic_assignmen sum = : " + str(assigned_sum))
+    return lduic_assignment_rollup
 
 """
 Create a dataframe report of hduics and templets to add to aos
@@ -280,6 +340,7 @@ Adds column to aos_hduic_templets with emilpo assigned, assigned delta, assigned
 def emilpo_assigned_delta():
     print("This is where I am going to compare emilpo assigned to auth + templets")
     aos_hduic_templets["EMILPO_ASGD_TOT"] = 0
+    aos_hduic_templets["EMILPO_ASGD_LDUIC_TOT"] = 0
     aos_hduic_templets["EMILPO_ASGD_AUTHS"] = 0
     aos_hduic_templets["EMILPO_ASGD_EXCESS"] = 0
     aos_hduic_templets["CALCULATED_EXCESS"] = 0
@@ -287,28 +348,54 @@ def emilpo_assigned_delta():
     aos_hduic_templets["DELTA_TEMPLET_EMILPO_EXCESS"] = 0
     aos_hduic_templets["EMILPO_ADJUSTED_TEMPLET_QTY"] = aos_hduic_templets.TEMPLET_QTY
     
+    errors = 0
+    
     for row in aos_hduic_templets.itertuples():
         try:
             aos_hduic_templets.at[row.Index, "EMILPO_ASGD_TOT"] = (
-                    emilpo_uic.loc[row.UIC].ASSIGNED)
+                    emilpo_uic.loc[row.UIC].ASSIGNED + 
+                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT)
+            
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_LDUIC_TOT"] = (
+                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT)
+            
             aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS"] = (
-                    emilpo_uic.loc[row.UIC].IN_AUTH)
+                    emilpo_uic.loc[row.UIC].IN_AUTH + 
+                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_AUTH)
+            
             aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS"] = (
-                    emilpo_uic.loc[row.UIC].EXCESS)
+                    emilpo_uic.loc[row.UIC].EXCESS + 
+                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS)
+            
             aos_hduic_templets.at[row.Index, "CALCULATED_EXCESS"] = (
-                    emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL)
+                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
+                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
+                     row.AUTH_MIL)
+            
             aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_CALCULATED_EXCESS"] = max(
-                    (emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL) - row.TEMPLET_QTY, 0)
+                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
+                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
+                     (row.AUTH_MIL + row.TEMPLET_QTY), 0)
+            
             aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_EMILPO_EXCESS"] = max(
-                    emilpo_uic.loc[row.UIC].EXCESS - row.TEMPLET_QTY, 0)
+                    (emilpo_uic.loc[row.UIC].EXCESS + 
+                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS) 
+                    - row.TEMPLET_QTY, 0)
+            
             aos_hduic_templets.at[row.Index, "EMILPO_ADJUSTED_TEMPLET_QTY"] = max(
-                            aos_hduic_templets.at[row.Index, "TEMPLET_QTY"],
-                            emilpo_uic.loc[row.UIC].ASSIGNED - row.AUTH_MIL - row.TEMPLET_QTY,
-                            emilpo_uic.loc[row.UIC].EXCESS - row.TEMPLET_QTY
-                        )
+                    aos_hduic_templets.at[row.Index, "TEMPLET_QTY"],
+                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
+                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
+                     (row.AUTH_MIL + row.TEMPLET_QTY),
+                    (emilpo_uic.loc[row.UIC].EXCESS + 
+                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS) - 
+                     row.TEMPLET_QTY)
+                    
         except Exception as err:
-            print("Error applying emilpo assigned to templet file for ", row.UIC, err)
+            errors += 1
+            #print("Error applying emilpo assigned to templet file for ", row.UIC, err)
     
+    print("emilpo_assigned_delta generated " + str(errors) + " errors.")
     
     
                     
