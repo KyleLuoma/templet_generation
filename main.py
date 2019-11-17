@@ -250,6 +250,8 @@ def rollup_lduic_assignments():
     lduic_assignment_rollup["LDUIC_ASSIGNED_TOT"] = 0
     lduic_assignment_rollup["LDUIC_ASSIGNED_AUTH"] = 0
     lduic_assignment_rollup["LDUIC_ASSIGNED_EXCESS"] = 0
+    lduic_assignment_rollup["LDUIC_PARENT_IN_AOS"] = False
+    lduic_assignment_rollup["LDUIC_PARENT_IN_FMS"] = False
     
     assigned_sum = 0
     
@@ -264,6 +266,12 @@ def rollup_lduic_assignments():
             lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_EXCESS"] += (
                     emilpo_uic.loc[row.Index].EXCESS)
         
+    for row in lduic_assignment_rollup.itertuples():
+        lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_AOS"] = (
+                row.LOWEST_UIC in aos_uic.UIC.tolist())
+        lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_FMS"] = (
+                row.LOWEST_UIC in fms_uic.LOWEST_UIC.tolist())
+    
     print("rollup_lduic_assignmen sum = : " + str(assigned_sum))
     return lduic_assignment_rollup
 
@@ -339,6 +347,9 @@ Adds column to aos_hduic_templets with emilpo assigned, assigned delta, assigned
 """
 def emilpo_assigned_delta():
     print("This is where I am going to compare emilpo assigned to auth + templets")
+    
+    aos_hduic_templets["UIC_IN_EMILPO"] = False
+    
     aos_hduic_templets["EMILPO_ASGD_UIC"] = 0
     aos_hduic_templets["EMILPO_ASGD_LDUIC"] = 0
     aos_hduic_templets["EMILPO_ASGD_TOT"] = 0
@@ -371,6 +382,9 @@ def emilpo_assigned_delta():
     errors = 0
     
     for row in aos_hduic_templets.itertuples():
+        aos_hduic_templets.at[row.UIC, "UIC_IN_EMILPO"] = (
+                row.UIC in emilpo_uic.UIC.tolist())
+        
         try:
             emilpo_asgd_uic = emilpo_uic.loc[row.UIC].ASSIGNED
             emilpo_asgd_lduic = lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT
@@ -412,7 +426,7 @@ def emilpo_assigned_delta():
                     
         except Exception as err:
             errors += 1
-            #print("Error applying emilpo assigned to templet file for ", row.UIC, err)
+            print("Error encountered when searching for UIC in emilpo assignment file: ", row.UIC, err)
     
     print("emilpo_assigned_delta generated " + str(errors) + " errors.")
     
