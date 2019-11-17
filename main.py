@@ -339,10 +339,30 @@ Adds column to aos_hduic_templets with emilpo assigned, assigned delta, assigned
 """
 def emilpo_assigned_delta():
     print("This is where I am going to compare emilpo assigned to auth + templets")
+    aos_hduic_templets["EMILPO_ASGD_UIC"] = 0
+    aos_hduic_templets["EMILPO_ASGD_LDUIC"] = 0
     aos_hduic_templets["EMILPO_ASGD_TOT"] = 0
-    aos_hduic_templets["EMILPO_ASGD_LDUIC_TOT"] = 0
-    aos_hduic_templets["EMILPO_ASGD_AUTHS"] = 0
-    aos_hduic_templets["EMILPO_ASGD_EXCESS"] = 0
+    
+    emilpo_asgd_uic = 0
+    emilpo_asgd_lduic = 0
+    emilpo_asgd_tot = 0
+    
+    aos_hduic_templets["EMILPO_ASGD_AUTHS_UIC"] = 0
+    aos_hduic_templets["EMILPO_ASGD_AUTHS_LDUIC"] = 0
+    aos_hduic_templets["EMILPO_ASGD_AUTHS_TOT"] = 0
+    
+    emilpo_asgd_auths_uic = 0
+    emilpo_asgd_auths_lduic = 0
+    emilpo_asgd_auths_tot = 0
+    
+    aos_hduic_templets["EMILPO_ASGD_EXCESS_UIC"] = 0
+    aos_hduic_templets["EMILPO_ASGD_EXCESS_LDUIC"] = 0
+    aos_hduic_templets["EMILPO_ASGD_EXCESS_TOT"] = 0
+    
+    emilpo_asgd_excess_uic = 0
+    emilpo_asgd_excess_lduic = 0
+    emilpo_asgd_excess_tot = 0
+    
     aos_hduic_templets["CALCULATED_EXCESS"] = 0
     aos_hduic_templets["DELTA_TEMPLET_CALCULATED_EXCESS"] = 0
     aos_hduic_templets["DELTA_TEMPLET_EMILPO_EXCESS"] = 0
@@ -352,44 +372,43 @@ def emilpo_assigned_delta():
     
     for row in aos_hduic_templets.itertuples():
         try:
-            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_TOT"] = (
-                    emilpo_uic.loc[row.UIC].ASSIGNED + 
-                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT)
+            emilpo_asgd_uic = emilpo_uic.loc[row.UIC].ASSIGNED
+            emilpo_asgd_lduic = lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT
+            emilpo_asgd_tot = emilpo_asgd_uic + emilpo_asgd_lduic
             
-            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_LDUIC_TOT"] = (
-                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT)
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_UIC"] = emilpo_asgd_uic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_LDUIC"] = emilpo_asgd_lduic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_TOT"] = emilpo_asgd_tot
             
-            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS"] = (
-                    emilpo_uic.loc[row.UIC].IN_AUTH + 
-                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_AUTH)
+            emilpo_asgd_auths_uic = emilpo_uic.loc[row.UIC].IN_AUTH
+            emilpo_asgd_auths_lduic = lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_AUTH
+            emilpo_asgd_auths_tot = emilpo_asgd_auths_uic + emilpo_asgd_auths_lduic
             
-            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS"] = (
-                    emilpo_uic.loc[row.UIC].EXCESS + 
-                    lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS)
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS_UIC"] = emilpo_asgd_auths_uic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS_LDUIC"] = emilpo_asgd_auths_lduic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_AUTHS_TOT"] = emilpo_asgd_auths_tot
+            
+            emilpo_asgd_excess_uic = emilpo_uic.loc[row.UIC].EXCESS
+            emilpo_asgd_excess_lduic = lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS
+            emilpo_asgd_excess_tot = emilpo_asgd_excess_uic + emilpo_asgd_excess_lduic
+            
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS_UIC"] = emilpo_asgd_excess_uic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS_LDUIC"] = emilpo_asgd_excess_lduic
+            aos_hduic_templets.at[row.Index, "EMILPO_ASGD_EXCESS_TOT"] = emilpo_asgd_excess_tot
             
             aos_hduic_templets.at[row.Index, "CALCULATED_EXCESS"] = (
-                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
-                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
-                     row.AUTH_MIL)
+                    emilpo_asgd_tot - row.AUTH_MIL)
             
             aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_CALCULATED_EXCESS"] = max(
-                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
-                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
-                     (row.AUTH_MIL + row.TEMPLET_QTY), 0)
+                    (emilpo_asgd_tot - (row.AUTH_MIL + row.TEMPLET_QTY), 0))
             
             aos_hduic_templets.at[row.Index, "DELTA_TEMPLET_EMILPO_EXCESS"] = max(
-                    (emilpo_uic.loc[row.UIC].EXCESS + 
-                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS) 
-                    - row.TEMPLET_QTY, 0)
+                    emilpo_asgd_excess_tot - row.TEMPLET_QTY, 0)
             
             aos_hduic_templets.at[row.Index, "EMILPO_ADJUSTED_TEMPLET_QTY"] = max(
                     aos_hduic_templets.at[row.Index, "TEMPLET_QTY"],
-                    (emilpo_uic.loc[row.UIC].ASSIGNED + 
-                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_TOT) - 
-                     (row.AUTH_MIL + row.TEMPLET_QTY),
-                    (emilpo_uic.loc[row.UIC].EXCESS + 
-                     lduic_assignment_rollup.loc[row.UIC].LDUIC_ASSIGNED_EXCESS) - 
-                     row.TEMPLET_QTY)
+                    emilpo_asgd_tot - row.AUTH_MIL,
+                    emilpo_asgd_excess_tot)
                     
         except Exception as err:
             errors += 1
