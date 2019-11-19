@@ -85,10 +85,15 @@ NOTE: fms_lduic contains a subset of authorizations that already exist in fms_ui
 """
 def prepare_fms_file():
     fms_uic["LOWEST_UIC"] = ""
+    fms_uic["UIC_PUD"] = ""
+    fms_uic["UIC_SUB"] = ""
     fms_uic.TEMPLET_QTY = 0
     
     """Consolidate UIC or sub code UIC into one column named LOWEST_UIC"""
     for row in fms_uic.itertuples():
+        fms_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
+        fms_uic.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
+        
         if (pd.isna(row.FULLSUBCO)):
             fms_uic.at[row.Index, 'LOWEST_UIC'] = row.UIC
         else:
@@ -97,6 +102,31 @@ def prepare_fms_file():
         """Calculate baseline templet quantity for each row"""
         fms_uic.at[row.Index, 'TEMPLET_QTY'] = max(
                 math.ceil(row.AUTHMIL * TEMPLET_PERCENT), MIN_TEMPLETS)
+    
+    fms_uic.set_index("LOWEST_UIC", drop = False, inplace = True)
+    
+    error_count = 0
+    total_count = 0
+    error_auths = 0
+    
+    for row in fms_uic.itertuples():
+        """Add 95, 96 or 99 coded UIC mil auths to AA parent"""
+        if (row.UIC_SUB in ('95', '96', '99')):
+            parentAA = row.UIC[0:4] + 'AA'
+            total_count += 1
+            try:
+                fms_uic.at[parentAA, 'TEMPLET_QTY'] += (
+                        math.ceil(row.AUTHMIL * TEMPLET_PERCENT))
+            except Exception as err:
+                print("Unable to locate " + parentAA + " with " + 
+                      str(row.AUTHMIL) + " auths in FMS file!")
+                error_count += 1
+                error_auths += row.AUTHMIL
+    
+    print("Unable to load " + str(error_count) + " of " + str(total_count) + 
+          " AUG 95, 96 or 99 coded UICs with a total of " + str(error_auths) + 
+          " authorizations resulting in " + str(error_auths * TEMPLET_PERCENT) + 
+          " missing templets.")
       
     fms_lduic.set_index("LDUIC", drop = False, inplace = True)
     fms_lduic["LOWEST_UIC"] = ""    
@@ -128,10 +158,12 @@ and footer and classification banners must be stripped. Then convert to .csv
 """
 def prepare_aos_uic_file():
     aos_uic["UIC_PUD"] = ""
+    aos_uic["UIC_SUB"] = ""
     aos_uic["EXPECTED_HDUIC"] = ""
     
     for row in aos_uic.itertuples():
         aos_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
+        aos_uic.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
         if (HD_map.index.isin([row.UIC[4:6]]).any()):
             aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = (row.UIC[0:4] + 
                       HD_map.loc[row.UIC[4:6]].HDUIC)
@@ -282,8 +314,8 @@ def gen_aos_hduic_templets():
     debug_uic = "WG2CA0" #### FOR UIC SMOKE TEST ###
     is_debug_uic = False
     
-    aos_hduic_templets = aos_uic[["UIC", "EXPECTED_HDUIC", "DEPT_NAME", 
-                                  "SHORT_NAME", "HAS_DUIC", 
+    aos_hduic_templets = aos_uic[["UIC", "UIC_PUD", "UIC_SUB", "EXPECTED_HDUIC", 
+                                  "DEPT_NAME", "SHORT_NAME", "HAS_DUIC", 
                                   "IN_FMS"]].where(
             aos_uic.EXPECTED_HDUIC != "")
     aos_hduic_templets["AUTH_MIL"] = 0
@@ -426,9 +458,10 @@ def emilpo_assigned_delta():
                     
         except Exception as err:
             errors += 1
-            print("Error encountered when searching for UIC in emilpo assignment file: ", row.UIC, err)
+            #print("Error encountered when searching for UIC in emilpo assignment file: ", row.UIC, err)
     
-    print("emilpo_assigned_delta generated " + str(errors) + " errors.")
+    print("emilpo_assigned_delta generated " + str(errors) + 
+          " errors where a UIC in AOS was not found in EMilpo")
     
     
                     
