@@ -127,7 +127,8 @@ def prepare_fms_file():
           " AUG 95, 96 or 99 coded UICs with a total of " + str(error_auths) + 
           " authorizations resulting in " + str(error_auths * TEMPLET_PERCENT) + 
           " missing templets.")
-      
+    
+    """ Identifies  """
     fms_lduic.set_index("LDUIC", drop = False, inplace = True)
     fms_lduic["LOWEST_UIC"] = ""    
     for row in fms_lduic.itertuples():
