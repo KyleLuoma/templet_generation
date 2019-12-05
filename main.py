@@ -21,7 +21,7 @@ EXPORT = True
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
     fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects, \
-    emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup
+    emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup, dq_metrics
     
     """ Load """
     aos_uic = load_data.load_aos_file()
@@ -48,6 +48,7 @@ def main():
     aos_hduic_templets = gen_aos_hduic_templets()
     templet_rejects = fms_uic_not_in_templet_file()
     templet_short = emilpo_assigned_delta()
+    dq_metrics = generate_dq_metrics()
     
     """ Export """
     if(EXPORT):
@@ -128,7 +129,7 @@ def prepare_fms_file():
           " authorizations resulting in " + str(error_auths * TEMPLET_PERCENT) + 
           " missing templets.")
     
-    """ Identifies  """
+    """ Identifies  lowest level UIC for each LDUIC's parent"""
     fms_lduic.set_index("LDUIC", drop = False, inplace = True)
     fms_lduic["LOWEST_UIC"] = ""    
     for row in fms_lduic.itertuples():
@@ -158,6 +159,8 @@ for each of these nodes. The files must be merged together in excel and the head
 and footer and classification banners must be stripped. Then convert to .csv
 """
 def prepare_aos_uic_file():
+    aos_uic.set_index("UIC", drop = False, inplace = True)
+    
     aos_uic["UIC_PUD"] = ""
     aos_uic["UIC_SUB"] = ""
     aos_uic["EXPECTED_HDUIC"] = ""
@@ -464,8 +467,65 @@ def emilpo_assigned_delta():
     print("emilpo_assigned_delta generated " + str(errors) + 
           " errors where a UIC in AOS was not found in EMilpo")
     
+def generate_dq_metrics(command = ""):
     
-                    
+    metrics = pd.DataFrame(data = {
+            'command' : ['ALL'],
+            'emilpo_uic_total' : [0],
+            'emilpo_uic_in_aos' : [0],
+            'emilpo_uic_not_in_aos' : [0],
+            'percent_emilpo_uic_in_aos' : [0.0],
+            'percent_emilpo_uic_not_in_aos' : [0.0],
+            'emilpo_uic_in_fms' : [0],
+            'emilpo_uic_not_in_fms' : [0],
+            'percent_emilpo_uic_in_fms' : [0.0],
+            'percent_emilpo_uic_not_in_fms' : [0.0],
+            'emilpo_uic_in_drrsa' : [0],
+            'emilpo_uic_not_in_drrsa' : [0],
+            'percent_emilpo_uic_in_drrsa' : [0.0],
+            'percent_emilpo_uic_not_in_drrsa' : [0.0]
+            })
+    
+    metrics.set_index('command', drop = True, inplace = True)
+    
+    #All Army Metrics
+    #UICs in EMILPO not in AOS:
+    metrics.at["ALL", "emilpo_uic_total"] = emilpo_uic.count().UIC
+    
+    metrics.at["ALL", "emilpo_uic_in_aos"] = emilpo_uic.where(emilpo_uic.IN_AOS).count().UIC
+    metrics.at["ALL", "emilpo_uic_not_in_aos"] = emilpo_uic.where(emilpo_uic.IN_AOS == False).count().UIC
+    
+    metrics.at["ALL", "percent_emilpo_uic_not_in_aos"] = (
+            metrics.loc["ALL"].emilpo_uic_not_in_aos / metrics.loc["ALL"].emilpo_uic_total)
+            
+    metrics.at["ALL", "percent_emilpo_uic_in_aos"] = 1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_aos           
+    
+    #UICs in EMILPO not in FMS:
+    metrics.at["ALL", "emilpo_uic_in_fms"] = emilpo_uic.where(
+            emilpo_uic.IN_FMS_UIC).count().UIC
+    metrics.at["ALL", "emilpo_uic_in_fms"] += emilpo_uic.where(
+            emilpo_uic.IN_FMS_LDUIC).count().UIC
+    
+    metrics.at["ALL", "emilpo_uic_not_in_fms"] = emilpo_uic.where(
+            (emilpo_uic.IN_FMS_UIC == False) & (emilpo_uic.IN_FMS_LDUIC == False)).count().UIC
+    
+    metrics.at["ALL", "percent_emilpo_uic_not_in_fms"] = (
+            metrics.loc["ALL"].emilpo_uic_not_in_fms / metrics.loc["ALL"].emilpo_uic_total)
+    
+    metrics.at["ALL", "percent_emilpo_uic_in_fms"] = (
+            1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_fms)
+    
+    #UICs in EMILPO not in DRRSA
+    metrics.at["ALL", "emilpo_uic_in_drrsa"] = emilpo_uic.where(emilpo_uic.IN_DRRSA).count().UIC
+    metrics.at["ALL", "emilpo_uic_not_in_drrsa"] = emilpo_uic.where(emilpo_uic.IN_DRRSA == False).count().UIC
+    
+    metrics.at["ALL", "percent_emilpo_uic_not_in_drrsa"] = (
+            metrics.loc["ALL"].emilpo_uic_not_in_drrsa / metrics.loc["ALL"].emilpo_uic_total)
+    
+    metrics.at["ALL", "percent_emilpo_uic_in_drrsa"] = (
+            1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_drrsa)
+    
+    return metrics
     
     
 if (__name__ == "__main__"): main()
