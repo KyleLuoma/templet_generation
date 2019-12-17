@@ -11,7 +11,9 @@ Depends on global dataframe outputs from main.py including:
     drrsa_uic
 """
 
-def generate_dq_metrics(emilpo_uic, grouping):
+def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
+    
+    global metrics
     
     metrics = emilpo_uic[[grouping, "UIC",]].groupby([grouping]).count()
     metrics.rename(columns = {"UIC" : "EMILPO_UIC"}, inplace = True)
@@ -55,6 +57,24 @@ def generate_dq_metrics(emilpo_uic, grouping):
                     lsuffix = "_left",
                     rsuffix = "_right"
             ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_DRRSA"})
+            
+    #Generate count of EMILPO UICs in FMS
+    metrics = metrics.join(
+            emilpo_uic[[grouping, "IN_FMS_UIC", "IN_FMS_LDUIC"]].where(
+                    (emilpo_uic.IN_FMS_UIC == True) | (emilpo_uic.IN_FMS_LDUIC == True)
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"IN_FMS_UIC" : "EMILPO_UIC_IN_FMS"})
+    metrics.drop(columns = ['IN_FMS_LDUIC'], inplace = True)
+    
+    #Generate count of EMILPO UICs not in FMS
+    metrics["EMILPO_UIC_NOT_IN_FMS"] = (
+            metrics.EMILPO_UIC - metrics.EMILPO_UIC_IN_FMS)
+    
+    #Generate percent of EMILPO_UICs present in FMS
+    metrics["PERC_EMILPO_UIC_IN_FMS"] = (
+            metrics.EMILPO_UIC_IN_FMS / metrics.EMILPO_UIC)
     
     #Generate count of EMILPO UICs in AOS
     metrics = metrics.join(
@@ -81,23 +101,74 @@ def generate_dq_metrics(emilpo_uic, grouping):
                     lsuffix = "_left",
                     rsuffix = "_right"
             ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_AOS"})
-            
-    #Generate count of EMILPO UICs in FMS
+    
+    #Generate count of LDUICs in FMS
     metrics = metrics.join(
-            emilpo_uic[[grouping, "IN_FMS_UIC", "IN_FMS_LDUIC"]].where(
-                    (emilpo_uic.IN_FMS_UIC == True) | (emilpo_uic.IN_FMS_LDUIC == True)
+            fms_lduic[[grouping, "LDUIC"]].groupby(grouping).count(),
+            lsuffix = "_left",
+            rsuffix = "_right"
+            ).rename(columns = {"LDUIC" : "FMS_LDUIC"})
+    
+    #Generate count of LDUICs in FMS and in AOS
+    metrics = metrics.join(
+            fms_lduic[[grouping, "IN_AOS"]].where(
+                    fms_lduic.IN_AOS == True
                     ).groupby(grouping).count(),
                     lsuffix = "_left",
                     rsuffix = "_right"
-            ).rename(columns = {"IN_FMS_UIC" : "EMILPO_UIC_IN_FMS"})
-    metrics.drop(columns = ['IN_FMS_LDUIC'], inplace = True)
+            ).rename(columns = {"IN_AOS" : "FMS_LDUIC_IN_AOS"})
     
-    #Generate count of EMILPO UICs not in FMS
-    metrics["EMILPO_UIC_NOT_IN_FMS"] = (
-            metrics.EMILPO_UIC - metrics.EMILPO_UIC_IN_FMS)
+    #Generate count of LDUICs in FMS and not in AOS
+    metrics["FMS_LDUIC_NOT_IN_AOS"] = (
+            metrics.FMS_LDUIC - metrics.FMS_LDUIC_IN_AOS)
     
-    #Generate percent of EMILPO_UICs present in FMS
-    metrics["PERC_EMILPO_UIC_IN_FMS"] = (
-            metrics.EMILPO_UIC_IN_FMS / metrics.EMILPO_UIC)
+    #Generate percent of LDUICs in FMS in AOS
+    metrics["PERC_FMS_LDUIC_IN_AOS"] = (
+            metrics.FMS_LDUIC_IN_AOS / metrics.FMS_LDUIC)
+    
+    #Generate count of expected HSDUICs in AOS
+    metrics = metrics.join(
+            aos_uic[[grouping, "UIC", "EXPECTED_HDUIC"]].where(
+                    aos_uic.EXPECTED_HDUIC != "").dropna().groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"EXPECTED_HDUIC" : "AOS_EXPECTED_HSDUIC"})
+    metrics.drop(columns = ['UIC'], inplace = True)
+
+    #Generate count of AOS UICs that have HSDUICs in DRRSA
+    metrics = metrics.join(
+            aos_uic[[grouping, "HAS_DUIC"]].where(
+                    aos_uic.HAS_DUIC == True
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"HAS_DUIC" : "AOS_EXPECTED_HSDUIC_IN_DRRS"})
+            
+    #Generate count of AOS UICs that expect HSDUICs not registered in DRRSA
+    metrics["AOS_EXPECTED_HSDUIC_NOT_IN_DRRS"] = (
+            metrics.AOS_EXPECTED_HSDUIC - metrics.AOS_EXPECTED_HSDUIC_IN_DRRS)
+    
+    #Generate percent of AOS UICs that expect HSDUICs registered in DRRSA
+    metrics["PERC_AOS_EXPECTED_HSDUIC_IN_DRRS"] = (
+            metrics.AOS_EXPECTED_HSDUIC_IN_DRRS / metrics.AOS_EXPECTED_HSDUIC)
+    
+    #Generate count of AOS UICs that have HSDUICs in AOS
+    metrics = metrics.join(
+            aos_uic[[grouping, "HDUIC_IN_AOS"]].where(
+                    (aos_uic.EXPECTED_HDUIC != False) & (aos_uic.HDUIC_IN_AOS == True)
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"HDUIC_IN_AOS" : "AOS_EXPECTED_HSDUIC_IN_AOS"})
+    
+    #Generate count of AOS UICs that do not have HSDUICs in AOS
+    metrics["AOS_EXPECTED_HSDUIC_NOT_IN_AOS"] = (
+            metrics.AOS_EXPECTED_HSDUIC - metrics.AOS_EXPECTED_HSDUIC_IN_AOS)
+    
+    #Generate percent of AOS UICs that have HSDUICs in AOS
+    metrics["PERC_AOS_EXPECTED_HSDUIC_IN_AOS"] = (
+            metrics.AOS_EXPECTED_HSDUIC_IN_AOS / metrics.AOS_EXPECTED_HSDUIC)
+    
+    metrics.fillna(value = 0, inplace = True)
     
     return metrics

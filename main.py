@@ -43,18 +43,27 @@ def main():
     hduic_index = make_drrsa_hduic_index(PUD_ONLY = False)
     missing_aos_duic = aos_drrsa_hduic_check()
     fms_uics_not_in_aos = fms_uic_not_in_aos()
+    fms_lduics_not_in_aos = fms_lduic_not_in_aos()
+    hduics_not_in_aos = aos_aos_hduic_check()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
     lduic_assignment_rollup = rollup_lduic_assignments()
     aos_hduic_templets = gen_aos_hduic_templets()
     templet_rejects = fms_uic_not_in_templet_file()
     templet_short = emilpo_assigned_delta()
-    dq_metrics = aos_metrics.generate_dq_metrics(emilpo_uic, "CMD")
+    dq_metrics = aos_metrics.generate_dq_metrics(
+            emilpo_uic, 
+            fms_lduic, 
+            aos_uic,
+            "CMD"
+            )
     
     """ Export """
     if(EXPORT):
         missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos"       + TIMESTAMP + ".csv")
         fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos"       + TIMESTAMP + ".csv")
+        fms_lduics_not_in_aos.to_csv("./export/fms_lduic_not_in_aos"   + TIMESTAMP + ".csv")
+        hduics_not_in_aos.to_csv("./export/hduics_not_in_aos"          + TIMESTAMP + ".csv")
         aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms"       + TIMESTAMP + ".csv")
         emilpo_uics_not_in_aos_fms_drrsa.to_csv("./export/emilpo_uic_not_in_aos" + TIMESTAMP + ".csv")
         aos_hduic_templets.to_csv("./export/aos_hduic_templts"         + TIMESTAMP + ".csv")
@@ -160,11 +169,14 @@ for each of these nodes. The files must be merged together in excel and the head
 and footer and classification banners must be stripped. Then convert to .csv
 """
 def prepare_aos_uic_file():
+    errors = 0
+    
     aos_uic.set_index("UIC", drop = False, inplace = True)
     
     aos_uic["UIC_PUD"] = ""
     aos_uic["UIC_SUB"] = ""
     aos_uic["EXPECTED_HDUIC"] = ""
+    aos_uic["CMD"] = ""
     
     for row in aos_uic.itertuples():
         aos_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
@@ -172,6 +184,17 @@ def prepare_aos_uic_file():
         if (HD_map.index.isin([row.UIC[4:6]]).any()):
             aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = (row.UIC[0:4] + 
                       HD_map.loc[row.UIC[4:6]].HDUIC)
+        try:
+            aos_uic.at[row.Index, 'CMD'] = fms_uic.loc[row.Index].CMD
+        except Exception as err:
+            errors += 1
+        
+        try:
+            aos_uic.at[row.Index, 'CMD'] = fms_lduic.loc[row.Index].CMD
+        except Exception as err:
+            errors += 1
+    
+    print("Counted " + str(errors) + " exceptions while mapping CMD to AOS UIC.")
         
 """
 Relies on global dataframe drrsa_uic
@@ -224,6 +247,16 @@ def aos_drrsa_hduic_check():
     return missing_uics.where(missing_uics.EXPECTED_HDUIC != "").dropna()
 
 """
+Relies on global dataframe aos_uic
+Checks if the expected DUIC in AOS also exists as a UIC in AOS
+Returns: dataframe consisting of the AOS UICs that do not have HSDUICs in AOS
+"""
+def aos_aos_hduic_check():
+    aos_uic['HDUIC_IN_AOS'] = False
+    aos_uic.HDUIC_IN_AOS = aos_uic.EXPECTED_HDUIC.isin(aos_uic.index)
+    return aos_uic.where(aos_uic.HDUIC_IN_AOS == False).dropna()
+
+"""
 Relies on aos_uic and fms_uic global dataframes
 Adds a Series to fms_uic DF of UICs in FMS that are not in AOS and returns
 a dataframe report of fms uics not in aos
@@ -233,6 +266,17 @@ def fms_uic_not_in_aos():
     fms_uic.IN_AOS = fms_uic.LOWEST_UIC.isin(aos_uic.UIC)
     return fms_uic[["LOWEST_UIC", "COMPO", "CMD", "UNITNAME", "AUTHMIL"]].where(
             fms_uic.IN_AOS == False).dropna()
+
+"""
+Relies on aos_uic and fms_lduic global dataframes
+Adds a Series to fms_lduic DF of LDUICs in FMS that are not in AOS and returns
+a dataframe report of fms LDUICs not in AOS
+"""
+def fms_lduic_not_in_aos():
+    fms_lduic['IN_AOS'] = False
+    fms_lduic.IN_AOS = fms_lduic.index.isin(aos_uic.UIC)
+    return fms_lduic.where(
+            fms_lduic.IN_AOS == False).dropna()
 
 """
 Relies on fms_uic and aos_uic global dataframs
