@@ -126,6 +126,13 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
     metrics["PERC_FMS_LDUIC_IN_AOS"] = (
             metrics.FMS_LDUIC_IN_AOS / metrics.FMS_LDUIC)
     
+    #Generate count of UICs in AOS
+    metrics = metrics.join(
+            aos_uic[[grouping, "UIC"]].groupby(grouping).count(),
+            lsuffix = "_left",
+            rsuffix = "_right"
+            ).rename(columns = {"UIC" : "AOS_UIC"})
+    
     #Generate count of expected HSDUICs in AOS
     metrics = metrics.join(
             aos_uic[[grouping, "UIC", "EXPECTED_HDUIC"]].where(
@@ -169,6 +176,31 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
     metrics["PERC_AOS_EXPECTED_HSDUIC_IN_AOS"] = (
             metrics.AOS_EXPECTED_HSDUIC_IN_AOS / metrics.AOS_EXPECTED_HSDUIC)
     
+    #Generate count of AOS UICs that do not require location data fields to be filled
+    #Exclude UIC Sub Codes 95, 96, 99 and FF
+    metrics = metrics.join(
+            aos_uic[[grouping, "LOCATION_NOT_REQ"]].where(
+                    (aos_uic.LOCATION_NOT_REQ == True)
+                    ).groupby(grouping).count().drop([""]),
+                    lsuffix = "_left",
+                    rsuffix = "_right",
+                    how = "inner"
+            ).rename(columns = {"LOCATION_NOT_REQ" : "LOC_NOT_REQ_IN_AOS"})
+
+    #Generate count of AOS UICs that require location data fields to be filled
+
+    metrics["LOC_REQ_IN_AOS"] = (
+            metrics.AOS_UIC - metrics.LOC_NOT_REQ_IN_AOS
+            )
+
     metrics.fillna(value = 0, inplace = True)
     
     return metrics
+"""
+                    "HOGEO", 
+                    "STACO", 
+                    "PH_GEO_TXT", 
+                    "PH_POSTAL_CODE_TXT",
+                    "PH_CITY_TXT",
+                    "PH_COUNTRY_TXT"
+"""

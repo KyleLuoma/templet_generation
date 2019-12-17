@@ -18,6 +18,7 @@ TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
 EXPORT = False
+LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
@@ -177,10 +178,11 @@ def prepare_aos_uic_file():
     aos_uic["UIC_SUB"] = ""
     aos_uic["EXPECTED_HDUIC"] = ""
     aos_uic["CMD"] = ""
-    
+        
     for row in aos_uic.itertuples():
         aos_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
         aos_uic.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
+        
         if (HD_map.index.isin([row.UIC[4:6]]).any()):
             aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = (row.UIC[0:4] + 
                       HD_map.loc[row.UIC[4:6]].HDUIC)
@@ -194,6 +196,8 @@ def prepare_aos_uic_file():
         except Exception as err:
             errors += 1
     
+    aos_uic["LOCATION_NOT_REQ"] = aos_uic.UIC_SUB.isin(LOCATION_EXEMPT_SUBCODES)
+
     print("Counted " + str(errors) + " exceptions while mapping CMD to AOS UIC.")
         
 """
