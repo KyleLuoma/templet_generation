@@ -12,11 +12,12 @@ import numpy as np
 import math
 import load_data
 import utility
+import aos_metrics
 
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = True
+EXPORT = False
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
@@ -48,7 +49,7 @@ def main():
     aos_hduic_templets = gen_aos_hduic_templets()
     templet_rejects = fms_uic_not_in_templet_file()
     templet_short = emilpo_assigned_delta()
-    dq_metrics = generate_dq_metrics()
+    dq_metrics = aos_metrics.generate_dq_metrics(emilpo_uic, "CMD")
     
     """ Export """
     if(EXPORT):
@@ -467,78 +468,7 @@ def emilpo_assigned_delta():
     print("emilpo_assigned_delta generated " + str(errors) + 
           " errors where a UIC in AOS was not found in EMilpo")
     
-def generate_dq_metrics():
-    
-    command_metrics = emilpo_uic[["CMD", "UIC",]].groupby(["CMD"]).count()
-    command_metrics.rename(columns = {"UIC" : "EMILPO_UIC"}, inplace = True)
-    
-    #Generate count of EMILPO UICs in DRRSA
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "IN_DRRSA"]].where(
-                    emilpo_uic.IN_DRRSA == True
-                    ).groupby("CMD").count(),
-                    lsuffix = "_left",
-                    rsuffix = "_right"
-            ).rename(columns = {"IN_DRRSA" : "EMILPO_UIC_IN_DRRSA"})
-            
-    #Generate sum of personnel assigned to each command
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "ASSIGNED"]].groupby("CMD").sum(),
-            lsuffix = "_left",
-            rsuffix = "_right"
-            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED"})
-    
-    #Generate sum of personnel assigned to excess slots in each command
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "EXCESS"]].groupby("CMD").sum(),
-            lsuffix = "_left",
-            rsuffix = "_right"
-            ).rename(columns = {"EXCESS" : "EMILPO_ASSIGNED_EXCESS"})
-    
-    #Generate count of EMILPO UICs not in DRRSA
-    command_metrics["EMILPO_UIC_NOT_IN_DRRSA"] = (
-            command_metrics.EMILPO_UIC - command_metrics.EMILPO_UIC_IN_DRRSA)
-    
-    #Generate percent of EMILPO_UICs registered in DRRSA
-    command_metrics["PERC_EMILPO_UIC_IN_DRRSA"] = (
-            command_metrics.EMILPO_UIC_IN_DRRSA / command_metrics.EMILPO_UIC)
-    
-    #Generate sum of personnel assigned to EMILPO UICs not in DRRSA
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "ASSIGNED"]].where(
-                    emilpo_uic.IN_DRRSA == False
-                    ).groupby("CMD").sum(),
-                    lsuffix = "_left",
-                    rsuffix = "_right"
-            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_DRRSA"})
-    
-    #Generate count of EMILPO UICs in AOS
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "IN_AOS"]].where(
-                    emilpo_uic.IN_AOS == True
-                    ).groupby("CMD").count(),
-                    lsuffix = "_left",
-                    rsuffix = "_right"
-            ).rename(columns = {"IN_AOS" : "EMILPO_UIC_IN_AOS"})
-            
-    #Generate count of EMILPO UICs not in AOS
-    command_metrics["EMILPO_UIC_NOT_IN_AOS"] = (
-            command_metrics.EMILPO_UIC - command_metrics.EMILPO_UIC_IN_AOS)
-    
-    #Generate percent of EMILPO_UICs present in AOS
-    command_metrics["PERC_EMILPO_UIC_IN_AOS"] = (
-            command_metrics.EMILPO_UIC_IN_AOS / command_metrics.EMILPO_UIC)
-    
-    #Generate sum of personnel assigned to EMILPO UICs not in AOS
-    command_metrics = command_metrics.join(
-            emilpo_uic[["CMD", "ASSIGNED"]].where(
-                    emilpo_uic.IN_AOS == False
-                    ).groupby("CMD").sum(),
-                    lsuffix = "_left",
-                    rsuffix = "_right"
-            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_AOS"})
-    
-    return metrics
+
     
     
 if (__name__ == "__main__"): main()
