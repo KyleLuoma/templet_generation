@@ -467,63 +467,76 @@ def emilpo_assigned_delta():
     print("emilpo_assigned_delta generated " + str(errors) + 
           " errors where a UIC in AOS was not found in EMilpo")
     
-def generate_dq_metrics(command = ""):
+def generate_dq_metrics():
     
-    metrics = pd.DataFrame(data = {
-            'command' : ['ALL'],
-            'emilpo_uic_total' : [0],
-            'emilpo_uic_in_aos' : [0],
-            'emilpo_uic_not_in_aos' : [0],
-            'percent_emilpo_uic_in_aos' : [0.0],
-            'percent_emilpo_uic_not_in_aos' : [0.0],
-            'emilpo_uic_in_fms' : [0],
-            'emilpo_uic_not_in_fms' : [0],
-            'percent_emilpo_uic_in_fms' : [0.0],
-            'percent_emilpo_uic_not_in_fms' : [0.0],
-            'emilpo_uic_in_drrsa' : [0],
-            'emilpo_uic_not_in_drrsa' : [0],
-            'percent_emilpo_uic_in_drrsa' : [0.0],
-            'percent_emilpo_uic_not_in_drrsa' : [0.0]
-            })
+    command_metrics = emilpo_uic[["CMD", "UIC",]].groupby(["CMD"]).count()
+    command_metrics.rename(columns = {"UIC" : "EMILPO_UIC"}, inplace = True)
     
-    metrics.set_index('command', drop = True, inplace = True)
-    
-    #All Army Metrics
-    #UICs in EMILPO not in AOS:
-    metrics.at["ALL", "emilpo_uic_total"] = emilpo_uic.count().UIC
-    
-    metrics.at["ALL", "emilpo_uic_in_aos"] = emilpo_uic.where(emilpo_uic.IN_AOS).count().UIC
-    metrics.at["ALL", "emilpo_uic_not_in_aos"] = emilpo_uic.where(emilpo_uic.IN_AOS == False).count().UIC
-    
-    metrics.at["ALL", "percent_emilpo_uic_not_in_aos"] = (
-            metrics.loc["ALL"].emilpo_uic_not_in_aos / metrics.loc["ALL"].emilpo_uic_total)
+    #Generate count of EMILPO UICs in DRRSA
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "IN_DRRSA"]].where(
+                    emilpo_uic.IN_DRRSA == True
+                    ).groupby("CMD").count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"IN_DRRSA" : "EMILPO_UIC_IN_DRRSA"})
             
-    metrics.at["ALL", "percent_emilpo_uic_in_aos"] = 1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_aos           
+    #Generate sum of personnel assigned to each command
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "ASSIGNED"]].groupby("CMD").sum(),
+            lsuffix = "_left",
+            rsuffix = "_right"
+            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED"})
     
-    #UICs in EMILPO not in FMS:
-    metrics.at["ALL", "emilpo_uic_in_fms"] = emilpo_uic.where(
-            emilpo_uic.IN_FMS_UIC).count().UIC
-    metrics.at["ALL", "emilpo_uic_in_fms"] += emilpo_uic.where(
-            emilpo_uic.IN_FMS_LDUIC).count().UIC
+    #Generate sum of personnel assigned to excess slots in each command
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "EXCESS"]].groupby("CMD").sum(),
+            lsuffix = "_left",
+            rsuffix = "_right"
+            ).rename(columns = {"EXCESS" : "EMILPO_ASSIGNED_EXCESS"})
     
-    metrics.at["ALL", "emilpo_uic_not_in_fms"] = emilpo_uic.where(
-            (emilpo_uic.IN_FMS_UIC == False) & (emilpo_uic.IN_FMS_LDUIC == False)).count().UIC
+    #Generate count of EMILPO UICs not in DRRSA
+    command_metrics["EMILPO_UIC_NOT_IN_DRRSA"] = (
+            command_metrics.EMILPO_UIC - command_metrics.EMILPO_UIC_IN_DRRSA)
     
-    metrics.at["ALL", "percent_emilpo_uic_not_in_fms"] = (
-            metrics.loc["ALL"].emilpo_uic_not_in_fms / metrics.loc["ALL"].emilpo_uic_total)
+    #Generate percent of EMILPO_UICs registered in DRRSA
+    command_metrics["PERC_EMILPO_UIC_IN_DRRSA"] = (
+            command_metrics.EMILPO_UIC_IN_DRRSA / command_metrics.EMILPO_UIC)
     
-    metrics.at["ALL", "percent_emilpo_uic_in_fms"] = (
-            1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_fms)
+    #Generate sum of personnel assigned to EMILPO UICs not in DRRSA
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "ASSIGNED"]].where(
+                    emilpo_uic.IN_DRRSA == False
+                    ).groupby("CMD").sum(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_DRRSA"})
     
-    #UICs in EMILPO not in DRRSA
-    metrics.at["ALL", "emilpo_uic_in_drrsa"] = emilpo_uic.where(emilpo_uic.IN_DRRSA).count().UIC
-    metrics.at["ALL", "emilpo_uic_not_in_drrsa"] = emilpo_uic.where(emilpo_uic.IN_DRRSA == False).count().UIC
+    #Generate count of EMILPO UICs in AOS
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "IN_AOS"]].where(
+                    emilpo_uic.IN_AOS == True
+                    ).groupby("CMD").count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"IN_AOS" : "EMILPO_UIC_IN_AOS"})
+            
+    #Generate count of EMILPO UICs not in AOS
+    command_metrics["EMILPO_UIC_NOT_IN_AOS"] = (
+            command_metrics.EMILPO_UIC - command_metrics.EMILPO_UIC_IN_AOS)
     
-    metrics.at["ALL", "percent_emilpo_uic_not_in_drrsa"] = (
-            metrics.loc["ALL"].emilpo_uic_not_in_drrsa / metrics.loc["ALL"].emilpo_uic_total)
+    #Generate percent of EMILPO_UICs present in AOS
+    command_metrics["PERC_EMILPO_UIC_IN_AOS"] = (
+            command_metrics.EMILPO_UIC_IN_AOS / command_metrics.EMILPO_UIC)
     
-    metrics.at["ALL", "percent_emilpo_uic_in_drrsa"] = (
-            1 - metrics.loc["ALL"].percent_emilpo_uic_not_in_drrsa)
+    #Generate sum of personnel assigned to EMILPO UICs not in AOS
+    command_metrics = command_metrics.join(
+            emilpo_uic[["CMD", "ASSIGNED"]].where(
+                    emilpo_uic.IN_AOS == False
+                    ).groupby("CMD").sum(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"ASSIGNED" : "EMILPO_ASSIGNED_TO_UIC_NOT_IN_AOS"})
     
     return metrics
     

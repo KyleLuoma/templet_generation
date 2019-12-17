@@ -30,5 +30,5 @@ def load_HD_map():
 
 """ Retrieve EMILPO assignment rollup file """
 def load_emilpo():
-    return pd.read_csv("./data/emilpo_assigned_excess_11142019.csv")
+    return pd.read_csv("./data/emilpo_assigned_excess_12102019.csv")
 
