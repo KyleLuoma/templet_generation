@@ -14,7 +14,22 @@ def load_drrsa_file():
 
 """ Retrieve consolidated AOS UIC export file """
 def load_aos_file():
-    return pd.read_csv("./data/aos_uic_tree_ac_fy21.csv")
+    return pd.read_csv(
+            "./data/aos_uic_tree_ac_fy21.csv",
+            dtype = {
+                    "HOGEO" : str,
+                    "STACO" : str,
+                    "PH_RSDNC_TXT" : str,
+                    "PH_STREET_TXT" : str,
+                    "PH_STREET_ADDTNL_TXT" : str,
+                    "PH_POSTAL_BOX_TXT" : str,
+                    "PH_POSTBOX_ID_TXT" : str,
+                    "PH_GEO_TXT" : str,
+                    "PH_POSTAL_CODE_TXT" : str,
+                    "PH_CITY_TXT" : str,
+                    "PH_COUNTRY_TXT" : str
+                    }
+            ).fillna("")
 
 """ Retrieve FMS UIC Rollup with Military Authorizations """
 def load_fms_file():

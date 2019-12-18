@@ -128,10 +128,10 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
     
     #Generate count of UICs in AOS
     metrics = metrics.join(
-            aos_uic[[grouping, "UIC"]].groupby(grouping).count(),
+            aos_uic[[grouping, "UIC_PUD"]].groupby(grouping).count(),
             lsuffix = "_left",
             rsuffix = "_right"
-            ).rename(columns = {"UIC" : "AOS_UIC"})
+            ).rename(columns = {"UIC_PUD" : "AOS_UIC"})
     
     #Generate count of expected HSDUICs in AOS
     metrics = metrics.join(
@@ -181,26 +181,38 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
     metrics = metrics.join(
             aos_uic[[grouping, "LOCATION_NOT_REQ"]].where(
                     (aos_uic.LOCATION_NOT_REQ == True)
-                    ).groupby(grouping).count().drop([""]),
+                    ).groupby(grouping).count(),
                     lsuffix = "_left",
                     rsuffix = "_right",
-                    how = "inner"
             ).rename(columns = {"LOCATION_NOT_REQ" : "LOC_NOT_REQ_IN_AOS"})
 
     #Generate count of AOS UICs that require location data fields to be filled
-
-    metrics["LOC_REQ_IN_AOS"] = (
-            metrics.AOS_UIC - metrics.LOC_NOT_REQ_IN_AOS
+    metrics["LOC_REQ_IN_AOS"] = (metrics.AOS_UIC - metrics.LOC_NOT_REQ_IN_AOS)
+    
+    #Generate count of AOS UICs that require location data that have complete location data
+    metrics = metrics.join(
+            aos_uic[[grouping, "LOCATION_NOT_REQ", "LOCATION_DATA_COMPLETE"]].where(
+                    (aos_uic.LOCATION_NOT_REQ == False) & (aos_uic.LOCATION_DATA_COMPLETE == True)
+            ).groupby(grouping).count().fillna(0.0),
+            lsuffix = "_left",
+            rsuffix = "_right"
             )
+    metrics.drop(columns = ['LOCATION_NOT_REQ'], inplace = True)
+    
+    #Generate count of AOS UICs that require location data that have incomplete location data
+    metrics = metrics.join(
+            aos_uic[[grouping, "LOCATION_NOT_REQ"]].where(
+                    (aos_uic.LOCATION_NOT_REQ == False) & (aos_uic.LOCATION_DATA_COMPLETE == False)
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"LOCATION_NOT_REQ" : "LOCATION_DATA_INCOMPLETE"})
 
+    #Generate percent completion of location data population
+    metrics["PERC_LOCATION_DATA_COMPLETE"] = (
+            metrics.LOCATION_DATA_COMPLETE / metrics.LOC_REQ_IN_AOS
+            )
+    
     metrics.fillna(value = 0, inplace = True)
     
     return metrics
-"""
-                    "HOGEO", 
-                    "STACO", 
-                    "PH_GEO_TXT", 
-                    "PH_POSTAL_CODE_TXT",
-                    "PH_CITY_TXT",
-                    "PH_COUNTRY_TXT"
-"""

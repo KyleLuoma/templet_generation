@@ -19,6 +19,7 @@ MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
 EXPORT = False
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
+NON_COMMAND_CODE = "99"
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
@@ -171,6 +172,7 @@ and footer and classification banners must be stripped. Then convert to .csv
 """
 def prepare_aos_uic_file():
     errors = 0
+    has_uic = True
     
     aos_uic.set_index("UIC", drop = False, inplace = True)
     
@@ -178,6 +180,8 @@ def prepare_aos_uic_file():
     aos_uic["UIC_SUB"] = ""
     aos_uic["EXPECTED_HDUIC"] = ""
     aos_uic["CMD"] = ""
+    aos_uic["LOCATION_NOT_REQ"] = False
+    aos_uic["LOCATION_DATA_COMPLETE"] = False
         
     for row in aos_uic.itertuples():
         aos_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
@@ -186,17 +190,39 @@ def prepare_aos_uic_file():
         if (HD_map.index.isin([row.UIC[4:6]]).any()):
             aos_uic.at[row.Index, 'EXPECTED_HDUIC'] = (row.UIC[0:4] + 
                       HD_map.loc[row.UIC[4:6]].HDUIC)
+        
+        #Check that ALL required data fields have data:
+        aos_uic.at[row.Index, "LOCATION_DATA_COMPLETE"] = not (
+                aos_uic.at[row.Index, "HOGEO"] == "" and
+                aos_uic.at[row.Index, "STACO"] == "" and
+                aos_uic.at[row.Index, "PH_GEO_TXT"] == "" and
+                aos_uic.at[row.Index, "PH_POSTAL_CODE_TXT"] == "" and
+                aos_uic.at[row.Index, "PH_CITY_TXT"] == "" and
+                aos_uic.at[row.Index, "PH_COUNTRY_TXT"] == ""
+                )
+        
+        has_uic = True        
+    
+        #Join CMD code from FMS to AOS UIC, if available. Replace with 
+        #NON_COMMAND_CODE if the AOS UIC is not in FMS
         try:
-            aos_uic.at[row.Index, 'CMD'] = fms_uic.loc[row.Index].CMD
+            aos_uic.at[row.Index, 'CMD'] = str(fms_uic.at[row.Index, 'CMD'])
         except Exception as err:
             errors += 1
+            aos_uic.at[row.Index, 'CMD'] = NON_COMMAND_CODE
+            has_uic = False
         
         try:
-            aos_uic.at[row.Index, 'CMD'] = fms_lduic.loc[row.Index].CMD
+            aos_uic.at[row.Index, 'CMD'] = str(fms_lduic.at[row.Index, 'CMD'])
         except Exception as err:
             errors += 1
+            if (not has_uic):
+                aos_uic.at[row.Index, 'CMD'] = NON_COMMAND_CODE
+                
+        if (row.UIC[4:6] in LOCATION_EXEMPT_SUBCODES):
+            aos_uic.at[row.Index, 'LOCATION_NOT_REQ'] = True
     
-    aos_uic["LOCATION_NOT_REQ"] = aos_uic.UIC_SUB.isin(LOCATION_EXEMPT_SUBCODES)
+    #aos_uic["LOCATION_NOT_REQ"] = aos_uic.UIC_SUB.isin(LOCATION_EXEMPT_SUBCODES)
 
     print("Counted " + str(errors) + " exceptions while mapping CMD to AOS UIC.")
         
