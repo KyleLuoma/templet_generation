@@ -152,8 +152,13 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
             ).rename(columns = {"HAS_DUIC" : "AOS_EXPECTED_HSDUIC_IN_DRRS"})
             
     #Generate count of AOS UICs that expect HSDUICs not registered in DRRSA
-    metrics["AOS_EXPECTED_HSDUIC_NOT_IN_DRRS"] = (
-            metrics.AOS_EXPECTED_HSDUIC - metrics.AOS_EXPECTED_HSDUIC_IN_DRRS)
+    metrics = metrics.join(
+            aos_uic[[grouping, "HAS_DUIC"]].where(
+                    aos_uic.HAS_DUIC == False
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"HAS_DUIC" : "AOS_EXPECTED_HSDUIC__NOT_IN_DRRS"})
     
     #Generate percent of AOS UICs that expect HSDUICs registered in DRRSA
     metrics["PERC_AOS_EXPECTED_HSDUIC_IN_DRRS"] = (
@@ -169,9 +174,14 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
             ).rename(columns = {"HDUIC_IN_AOS" : "AOS_EXPECTED_HSDUIC_IN_AOS"})
     
     #Generate count of AOS UICs that do not have HSDUICs in AOS
-    metrics["AOS_EXPECTED_HSDUIC_NOT_IN_AOS"] = (
-            metrics.AOS_EXPECTED_HSDUIC - metrics.AOS_EXPECTED_HSDUIC_IN_AOS)
-    
+    metrics = metrics.join(
+            aos_uic[[grouping, "HDUIC_IN_AOS"]].where(
+                    (aos_uic.EXPECTED_HDUIC != False) & (aos_uic.HDUIC_IN_AOS == False)
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"HDUIC_IN_AOS" : "AOS_EXPECTED_HSDUIC_NOT_IN_AOS"})
+       
     #Generate percent of AOS UICs that have HSDUICs in AOS
     metrics["PERC_AOS_EXPECTED_HSDUIC_IN_AOS"] = (
             metrics.AOS_EXPECTED_HSDUIC_IN_AOS / metrics.AOS_EXPECTED_HSDUIC)
@@ -187,7 +197,13 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
             ).rename(columns = {"LOCATION_NOT_REQ" : "LOC_NOT_REQ_IN_AOS"})
 
     #Generate count of AOS UICs that require location data fields to be filled
-    metrics["LOC_REQ_IN_AOS"] = (metrics.AOS_UIC - metrics.LOC_NOT_REQ_IN_AOS)
+    metrics = metrics.join(
+            aos_uic[[grouping, "LOCATION_NOT_REQ"]].where(
+                    (aos_uic.LOCATION_NOT_REQ == False)
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right",
+            ).rename(columns = {"LOCATION_NOT_REQ" : "LOC_REQ_IN_AOS"})
     
     #Generate count of AOS UICs that require location data that have complete location data
     metrics = metrics.join(
