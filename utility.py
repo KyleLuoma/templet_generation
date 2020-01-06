@@ -12,4 +12,6 @@ def get_file_timestamp():
             str(t.tm_min)  + "-" +
             str(t.tm_sec)
             )
-    
+
+def get_local_time_as_string():
+    return tm.ctime()

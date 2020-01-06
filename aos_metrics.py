@@ -11,12 +11,14 @@ Depends on global dataframe outputs from main.py including:
     drrsa_uic
 """
 
-def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
+def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping, time_string):
     
     global metrics
     
     metrics = emilpo_uic[[grouping, "UIC",]].groupby([grouping]).count()
     metrics.rename(columns = {"UIC" : "EMILPO_UIC"}, inplace = True)
+    
+    metrics["DTG"] = time_string
     
     #Generate count of EMILPO UICs in DRRSA
     metrics = metrics.join(
@@ -119,8 +121,13 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping):
             ).rename(columns = {"IN_AOS" : "FMS_LDUIC_IN_AOS"})
     
     #Generate count of LDUICs in FMS and not in AOS
-    metrics["FMS_LDUIC_NOT_IN_AOS"] = (
-            metrics.FMS_LDUIC - metrics.FMS_LDUIC_IN_AOS)
+    metrics = metrics.join(
+            fms_lduic[[grouping, "IN_AOS"]].where(
+                    fms_lduic.IN_AOS == False
+                    ).groupby(grouping).count(),
+                    lsuffix = "_left",
+                    rsuffix = "_right"
+            ).rename(columns = {"IN_AOS" : "FMS_LDUIC_NOT_IN_AOS"})
     
     #Generate percent of LDUICs in FMS in AOS
     metrics["PERC_FMS_LDUIC_IN_AOS"] = (

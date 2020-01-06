@@ -17,7 +17,7 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = False
+EXPORT = True
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
 
@@ -46,6 +46,7 @@ def main():
     missing_aos_duic = aos_drrsa_hduic_check()
     fms_uics_not_in_aos = fms_uic_not_in_aos()
     fms_lduics_not_in_aos = fms_lduic_not_in_aos()
+    aos_uics_not_in_drrsa = aos_uic_not_in_drrsa()
     hduics_not_in_aos = aos_aos_hduic_check()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
@@ -57,7 +58,8 @@ def main():
             emilpo_uic, 
             fms_lduic, 
             aos_uic,
-            "CMD"
+            "CMD",
+            utility.get_local_time_as_string()
             )
     
     """ Export """
@@ -65,6 +67,7 @@ def main():
         missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos"       + TIMESTAMP + ".csv")
         fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos"       + TIMESTAMP + ".csv")
         fms_lduics_not_in_aos.to_csv("./export/fms_lduic_not_in_aos"   + TIMESTAMP + ".csv")
+        aos_uics_not_in_drrsa.to_csv("./export/aos_uic_not_in_drrsa"   + TIMESTAMP + ".csv")
         hduics_not_in_aos.to_csv("./export/hduics_not_in_aos"          + TIMESTAMP + ".csv")
         aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms"       + TIMESTAMP + ".csv")
         emilpo_uics_not_in_aos_fms_drrsa.to_csv("./export/emilpo_uic_not_in_aos" + TIMESTAMP + ".csv")
@@ -75,6 +78,7 @@ def main():
         drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
         emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
         lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
+        dq_metrics.to_csv("./export/dq_metrics"                        + TIMESTAMP + ".csv")
 
 """
 Relies on global dataframe fms_uic and fms_lduic
@@ -318,6 +322,16 @@ def aos_uic_not_in_fms():
     aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
+"""
+Relies on aos_uic and drrsa_uic global dataframes
+Addes a series to aos_uic DF of UICs in AOS that are not in DRRS-A and
+returns a dataframe report of aos UICs not in DRRS-A
+"""
+def aos_uic_not_in_drrsa():
+    aos_uic['IN_DRRSA'] = False
+    aos_uic.IN_DRRSA = aos_uic.UIC.isin(drrsa_uic.UIC)
+    return aos_uic[["UIC", "DEPT_NAME", ]].where(
+            aos_uic.IN_DRRSA == False).dropna()
     
 """
 Relies on aos_uic, fms_lduic and emilpo_uic global dataframes
