@@ -47,3 +47,9 @@ def load_HD_map():
 def load_emilpo():
     return pd.read_csv("./data/emilpo_assigned_excess_12102019.csv")
 
+""" Retrieve AOS UIC OUID Crosswalk """
+def load_uic_ouids():
+    return pd.read_csv(
+            "./data/OUID_UIC_FY21.csv",
+            dtype = {"UIC" : str, "OUID" : str}
+            )

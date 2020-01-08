@@ -24,10 +24,11 @@ NON_COMMAND_CODE = "99"
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
     fms_uics_not_in_aos, aos_uics_not_in_fms, aos_hduic_templets, templet_rejects, \
-    emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup, dq_metrics
+    emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup, dq_metrics, uic_ouid
     
     """ Load """
     aos_uic = load_data.load_aos_file()
+    uic_ouid = load_data.load_uic_ouids()
     drrsa_uic = load_data.load_drrsa_file()
     fms_uic = load_data.load_fms_file()
     fms_lduic = load_data.load_fms_lduic_file()
@@ -37,7 +38,8 @@ def main():
     """ Transform """
     prepare_fms_file()
     prepare_HD_map()
-    prepare_aos_uic_file()
+    prepare_uic_ouid_map()
+    aos_uic = prepare_aos_uic_file()
     prepare_drrsa_uic_file()
     prepare_emilpo_uic_file()
     
@@ -79,6 +81,25 @@ def main():
         emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
         lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
         dq_metrics.to_csv("./export/dq_metrics"                        + TIMESTAMP + ".csv")
+        aos_hduic_templets[[
+                "EXPECTED_HDUIC", 
+                "HAS_DUIC", 
+                "UIC", 
+                "OUID", 
+                "S_DATE", 
+                "T_DATE",
+                "EMILPO_ADJUSTED_TEMPLET_QTY"
+                ]].where(aos_uic.HAS_DUIC == True).dropna().rename(
+                    columns = {
+                            "EXPECTED_HDUIC" : "HSDUIC",
+                            "HAS_DUIC" : "HSDUIC_REGISTERED",
+                            "UIC" : "PARENT_UIC",
+                            "OUID" : "PARENT_OUID",
+                            "EMILPO_ADJUSTED_TEMPLET_QTY" : "STANDARD_EXCESS"
+                            }
+                ).to_csv(
+                "./export/hsduic_templet_generation"                            + TIMESTAMP + ".csv"
+                )
 
 """
 Relies on global dataframe fms_uic and fms_lduic
@@ -163,9 +184,15 @@ Creates a UIC -> HSDUIC code map
 """
 def prepare_HD_map():
     HD_map.set_index("UIC", drop = True, inplace = True)
+    
+"""
+Relies on global dataframe uic_ouid
+"""
+def prepare_uic_ouid_map():
+    uic_ouid.set_index("UIC", drop = False, inplace = True)
 
 """ 
-Relies on global dataframe aos_uic  and HD_map
+Relies on global dataframe aos_uic, uic_ouid and HD_map
 This file is a composite export of three root nodes in AOS:
     Army commands
     Army Staff
@@ -229,6 +256,12 @@ def prepare_aos_uic_file():
     #aos_uic["LOCATION_NOT_REQ"] = aos_uic.UIC_SUB.isin(LOCATION_EXEMPT_SUBCODES)
 
     print("Counted " + str(errors) + " exceptions while mapping CMD to AOS UIC.")
+    
+    return aos_uic.join(
+            uic_ouid[["OUID"]],
+            lsuffix = "_left",
+            rsuffix = "_right"
+            )
         
 """
 Relies on global dataframe drrsa_uic
@@ -319,7 +352,10 @@ a dataframe report of aos uics not in fms
 """
 def aos_uic_not_in_fms():
     aos_uic['IN_FMS'] = False
-    aos_uic.IN_FMS = aos_uic.UIC.isin(fms_uic.LOWEST_UIC)
+    aos_uic.IN_FMS = (
+            aos_uic.UIC.isin(fms_uic.LOWEST_UIC) | 
+            aos_uic.UIC.isin(fms_uic.UIC)
+            )
     return aos_uic[["UIC", "DEPT_NAME", "SHORT_NAME"]].where(
             aos_uic.IN_FMS == False).dropna()
 """
@@ -407,7 +443,8 @@ def gen_aos_hduic_templets():
     debug_uic = "WG2CA0" #### FOR UIC SMOKE TEST ###
     is_debug_uic = False
     
-    aos_hduic_templets = aos_uic[["UIC", "UIC_PUD", "UIC_SUB", "EXPECTED_HDUIC", 
+    aos_hduic_templets = aos_uic[["UIC", "OUID", "S_DATE", "T_DATE", "UIC_PUD", 
+                                  "UIC_SUB", "EXPECTED_HDUIC", 
                                   "DEPT_NAME", "SHORT_NAME", "HAS_DUIC", 
                                   "IN_FMS"]].where(
             aos_uic.EXPECTED_HDUIC != "")
@@ -437,20 +474,18 @@ def gen_aos_hduic_templets():
         if (row.Index == debug_uic): 
             print("Iterating over " + debug_uic) 
             is_debug_uic = True
-            
-        if (not pd.isna(row.UIC) and row.IN_FMS):
-            if (is_debug_uic): print(debug_uic + " Passed isna and infms check")
+
+        try:
             if (fms_auths_templets.AUTHMIL.loc[row.Index] > 0):
                 aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
                         fms_auths_templets.loc[row.UIC].AUTHMIL)
                 aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
                         fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
                 if (is_debug_uic): print(debug_uic + " passed fms auths > 0 check")
-            else:
-                if (is_debug_uic): print(debug_uic + " failed fms auths > 0 check")
-        else:
-            if (is_debug_uic): print("WG2CA0 Failed isna and infms check")
-        is_debug_uic = False
+        except:
+            if (is_debug_uic): 
+                print("WG2CA0 Failed isna and infms check")
+                is_debug_uic = False
         
     if (debug_uic in aos_hduic_templets.UIC.tolist()):
         print (debug_uic + " is in aos_hduic_templets dataframe")
