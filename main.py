@@ -17,7 +17,7 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = True
+EXPORT = False
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
 
@@ -31,12 +31,13 @@ def main():
     uic_ouid = load_data.load_uic_ouids()
     drrsa_uic = load_data.load_drrsa_file()
     fms_uic = load_data.load_fms_file()
+    fms_uic_prev = load_data.load_prev_fms_file()
     fms_lduic = load_data.load_fms_lduic_file()
     HD_map = load_data.load_HD_map()
     emilpo_uic = load_data.load_emilpo()
     
     """ Transform """
-    prepare_fms_file()
+    fms_uic = prepare_fms_file(fms_uic, fms_uic_prev)
     prepare_HD_map()
     prepare_uic_ouid_map()
     aos_uic = prepare_aos_uic_file()
@@ -121,27 +122,17 @@ fms_lduic from fms personnel detail line report with the following selections:
 NOTE: fms_lduic contains a subset of authorizations that already exist in fms_uic
 
 """
-def prepare_fms_file():
+def prepare_fms_file(fms_uic, fms_uic_prev):
     fms_uic["LOWEST_UIC"] = ""
     fms_uic["UIC_PUD"] = ""
     fms_uic["UIC_SUB"] = ""
     fms_uic.TEMPLET_QTY = 0
+    fms_uic_prev.TEMPLET_QTY = 0    
     
-    """Consolidate UIC or sub code UIC into one column named LOWEST_UIC"""
-    for row in fms_uic.itertuples():
-        fms_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
-        fms_uic.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
-        
-        if (pd.isna(row.FULLSUBCO)):
-            fms_uic.at[row.Index, 'LOWEST_UIC'] = row.UIC
-        else:
-            fms_uic.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
-        
-        """Calculate baseline templet quantity for each row"""
-        fms_uic.at[row.Index, 'TEMPLET_QTY'] = max(
-                math.ceil(row.AUTHMIL * TEMPLET_PERCENT), MIN_TEMPLETS)
-    
-    fms_uic.set_index("LOWEST_UIC", drop = False, inplace = True)
+    fms_uic = find_lowest_fms_uic(fms_uic)    
+    fms_uic_prev = find_lowest_fms_uic(fms_uic_prev)
+   
+    fms_uic = calculate_fms_templets(fms_uic)
     
     error_count = 0
     total_count = 0
@@ -176,7 +167,28 @@ def prepare_fms_file():
         else:
             fms_lduic.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
         
+    return fms_uic
 
+"""Consolidate UIC or sub code UIC into one column named LOWEST_UIC in fms_uic file"""
+def find_lowest_fms_uic(fms_file):
+    for row in fms_file.itertuples():
+        fms_file.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
+        fms_file.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
+        
+        if (pd.isna(row.FULLSUBCO)):
+            fms_file.at[row.Index, 'LOWEST_UIC'] = row.UIC
+        else:
+            fms_file.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
+    fms_file.set_index("LOWEST_UIC", drop = False, inplace = True)
+    return fms_file
+
+"""Calculate baseline templet quantity for each row in the fms_uic file"""
+def calculate_fms_templets(fms_file):
+    for row in fms_file.itertuples():
+        fms_file.at[row.Index, 'TEMPLET_QTY'] = max(
+                math.ceil(row.AUTHMIL * TEMPLET_PERCENT), MIN_TEMPLETS)
+    return fms_file
+    
 """ 
 Relies on global dataframe HD_map
 HD_map implements HQDA G-3 direction for UIC to HDUIC mapping nomenclature
