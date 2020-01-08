@@ -17,7 +17,7 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = False
+EXPORT = True
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
 
@@ -462,6 +462,7 @@ def rollup_lduic_assignments():
 
 """
 Create a dataframe report of hduics and templets to add to aos
+Relies on aos_uic, fms_uic and uic_ouid data frames
 """
 def gen_aos_hduic_templets():
     debug_uic = "WG2CA0" #### FOR UIC SMOKE TEST ###
@@ -521,7 +522,10 @@ def gen_aos_hduic_templets():
           "AUTHS in TMP file: " + str(aos_hduic_templets.AUTH_MIL.sum()) + "\n" +
           "            Delta: " + str(fms_uic.AUTHMIL.sum() - aos_hduic_templets.AUTH_MIL.sum()))
 
-    return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
+    #return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
+    return aos_hduic_templets.where(
+            aos_hduic_templets.EXPECTED_HDUIC.isin(uic_ouid.index) == False
+            ).dropna()
 
 """
 Relies on aos_hduic_templets and emilpo_uic dataframes
