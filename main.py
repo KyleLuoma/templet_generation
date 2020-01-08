@@ -134,6 +134,18 @@ def prepare_fms_file(fms_uic, fms_uic_prev):
    
     fms_uic = calculate_fms_templets(fms_uic)
     
+    """Append previous FY UICs to curreny FYs if they are not in the current
+    FY fms_uic data frame"""
+    print("Checking for missing UICs in current FY fms_uic document.")
+    add_uic_count = 0
+    for row in fms_uic_prev.itertuples():
+        if (row.Index not in fms_uic.index.tolist()):
+            print("Adding prev FY UIC " + row.Index + " to fms_uic DF.")
+            fms_uic = fms_uic.append(fms_uic_prev.loc[row.Index])
+            add_uic_count += 1
+    print("Completed current and previous fms_uic compare and added " + 
+          str(add_uic_count) + " uics from the previous FY.")
+    
     error_count = 0
     total_count = 0
     error_auths = 0
