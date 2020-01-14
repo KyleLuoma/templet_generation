@@ -20,6 +20,7 @@ TIMESTAMP = utility.get_file_timestamp()
 EXPORT = True
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
+TEMPLET_GEN_RULE = "TEMPLET_QTY" #Options: TEMPLET_QTY, EMILPO_ADJUSTED_TEMPLET_QTY
 
 def main():
     global aos_uic, drrsa_uic, fms_uic, HD_map, hduic_index, missing_aos_duic, \
@@ -89,14 +90,14 @@ def main():
                 "OUID", 
                 "S_DATE", 
                 "T_DATE",
-                "EMILPO_ADJUSTED_TEMPLET_QTY"
+                TEMPLET_GEN_RULE
                 ]].where(aos_uic.HAS_DUIC == True).dropna().rename(
                     columns = {
                             "EXPECTED_HDUIC" : "HSDUIC",
                             "HAS_DUIC" : "HSDUIC_REGISTERED",
                             "UIC" : "PARENT_UIC",
                             "OUID" : "PARENT_OUID",
-                            "EMILPO_ADJUSTED_TEMPLET_QTY" : "STANDARD_EXCESS"
+                            TEMPLET_GEN_RULE : "STANDARD_EXCESS"
                             }
                 ).to_csv(
                 "./export/hsduic_templet_generation"                            + TIMESTAMP + ".csv"
@@ -443,19 +444,25 @@ def rollup_lduic_assignments():
     for row in fms_lduic.itertuples():
         if (row.Index in emilpo_uic.UIC.tolist() and 
                 row.LOWEST_UIC in lduic_assignment_rollup.LOWEST_UIC.tolist()):
-            assigned_sum += emilpo_uic.loc[row.Index].ASSIGNED
-            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_TOT"] += (
-                    emilpo_uic.loc[row.Index].ASSIGNED)
-            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_AUTH"] += (
-                    emilpo_uic.loc[row.Index].IN_AUTH)
-            lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_EXCESS"] += (
-                    emilpo_uic.loc[row.Index].EXCESS)
+            try:
+                assigned_sum += emilpo_uic.loc[row.Index].ASSIGNED
+                lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_TOT"] += (
+                        emilpo_uic.loc[row.Index].ASSIGNED)
+                lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_AUTH"] += (
+                        emilpo_uic.loc[row.Index].IN_AUTH)
+                lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_EXCESS"] += (
+                        emilpo_uic.loc[row.Index].EXCESS)
+            except:
+                print("Encountered exception in rollup_lduic_assignments function")
         
     for row in lduic_assignment_rollup.itertuples():
-        lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_AOS"] = (
-                row.LOWEST_UIC in aos_uic.UIC.tolist())
-        lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_FMS"] = (
-                row.LOWEST_UIC in fms_uic.LOWEST_UIC.tolist())
+        try:
+            lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_AOS"] = (
+                    row.LOWEST_UIC in aos_uic.UIC.tolist())
+            lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_FMS"] = (
+                    row.LOWEST_UIC in fms_uic.LOWEST_UIC.tolist())
+        except:
+            print("Encountered exception in lduic assignment rollup.")
     
     print("rollup_lduic_assignmen sum = : " + str(assigned_sum))
     return lduic_assignment_rollup
@@ -567,6 +574,8 @@ def emilpo_assigned_delta():
     aos_hduic_templets["DELTA_TEMPLET_EMILPO_EXCESS"] = 0
     aos_hduic_templets["EMILPO_ADJUSTED_TEMPLET_QTY"] = aos_hduic_templets.TEMPLET_QTY
     
+    aos_hduic_templets["QTY_METHOD"] = "AUTHS_PERC"
+    
     errors = 0
     
     for row in aos_hduic_templets.itertuples():
@@ -611,6 +620,13 @@ def emilpo_assigned_delta():
                     aos_hduic_templets.at[row.Index, "TEMPLET_QTY"],
                     emilpo_asgd_tot - row.AUTH_MIL,
                     emilpo_asgd_excess_tot)
+            
+            if (
+                    ((emilpo_asgd_tot - row.AUTH_MIL) > aos_hduic_templets.at[row.Index, "TEMPLET_QTY"])
+                    or
+                    (emilpo_asgd_excess_tot > aos_hduic_templets.at[row.Index, "TEMPLET_QTY"])
+                    ):
+                aos_hduic_templets.at[row.Index, "QTY_METHOD"] = "ASGD_OVER"
                     
         except Exception as err:
             errors += 1

@@ -49,7 +49,7 @@ def load_HD_map():
 
 """ Retrieve EMILPO assignment rollup file """
 def load_emilpo():
-    return pd.read_csv("./data/emilpo_assigned_excess_12102019.csv")
+    return pd.read_csv("./data/emilpo_assigned_excess_01142020.csv")
 
 """ Retrieve AOS UIC OUID Crosswalk """
 def load_uic_ouids():
