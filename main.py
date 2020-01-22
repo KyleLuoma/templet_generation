@@ -82,7 +82,23 @@ def main():
         drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
         emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
         lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
-        dq_metrics.to_csv("./export/dq_metrics"                        + TIMESTAMP + ".csv")
+        dq_metrics.rename(
+                columns = {
+                        "EMILPO_UIC_IN_DRRSA" : "HRIS_UIC_IN_DRRSA",
+                        "EMILPO_ASSIGNED" : "HRIS_ASSIGNED",
+                        "EMILPO_ASSIGNED_EXCESS" : "HRIS_ASSIGNED_EXCESS",
+                        "EMILPO_UIC_NOT_IN_DRRSA" : "HRIS_UIC_NOT_IN_DRRSA",
+                        "PERC_EMILPO_UIC_IN_DRRSA" : "PERC_HRIS_UIC_IN_DRRSA",
+                        "EMILPO_ASSIGNED_TO_UIC_NOT_IN_DRRSA" : "HRIS_ASSIGNED_TO_UIC_NOT_IN_DRRSA",
+                        "EMILPO_UIC_IN_FMS" : "HRIS_UIC_IN_FMS",
+                        "EMILPO_UIC_NOT_IN_FMS" : "HRIS_UIC_NOT_IN_FMS",
+                        "PERC_EMILPO_UIC_IN_FMS" : "PERC_HRIS_UIC_IN_FMS",
+                        "EMILPO_UIC_IN_AOS" : "HRIS_UIC_IN_AOS",
+                        "EMILPO_UIC_NOT_IN_AOS" : "HRIS_UIC_NOT_IN_AOS",
+                        "PERC_EMILPO_UIC_IN_AOS" : "PERC_HRIS_UIC_IN_AOS",
+                        "EMILPO_ASSIGNED_TO_UIC_NOT_IN_AOS" : "HRIS_ASSIGNED_TO_UIC_NOT_IN_AOS"
+                        }
+                ).to_csv("./export/dq_metrics"                         + TIMESTAMP + ".csv")
         aos_hduic_templets[[
                 "EXPECTED_HDUIC", 
                 "HAS_DUIC", 
@@ -187,11 +203,12 @@ def find_lowest_fms_uic(fms_file):
     for row in fms_file.itertuples():
         fms_file.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]
         fms_file.at[row.Index, 'UIC_SUB'] = row.UIC[4:6]
-        
-        if (pd.isna(row.FULLSUBCO)):
-            fms_file.at[row.Index, 'LOWEST_UIC'] = row.UIC
-        else:
-            fms_file.at[row.Index, 'LOWEST_UIC'] = row.FULLSUBCO
+
+    fms_file['LOWEST_UIC'] = fms_file.apply(
+                lambda row: row["UIC"] if pd.isna(row["FULLSUBCO"]) else row["FULLSUBCO"],
+                axis = 1                
+                )    
+    
     fms_file.set_index("LOWEST_UIC", drop = False, inplace = True)
     return fms_file
 
@@ -352,7 +369,7 @@ Returns: dataframe consisting of the AOS UICs that do not have HSDUICs in AOS
 """
 def aos_aos_hduic_check():
     aos_uic['HDUIC_IN_AOS'] = False
-    aos_uic.HDUIC_IN_AOS = aos_uic.EXPECTED_HDUIC.isin(aos_uic.index)
+    aos_uic.HDUIC_IN_AOS = aos_uic.EXPECTED_HDUIC.isin(uic_ouid.index)
     return aos_uic.where(aos_uic.HDUIC_IN_AOS == False).dropna()
 
 """
@@ -478,10 +495,7 @@ def rollup_lduic_assignments():
 Create a dataframe report of hduics and templets to add to aos
 Relies on aos_uic, fms_uic and uic_ouid data frames
 """
-def gen_aos_hduic_templets():
-    debug_uic = "WG2CA0" #### FOR UIC SMOKE TEST ###
-    is_debug_uic = False
-    
+def gen_aos_hduic_templets():   
     aos_hduic_templets = aos_uic[["UIC", "OUID", "S_DATE", "T_DATE", "UIC_PUD", 
                                   "UIC_SUB", "EXPECTED_HDUIC", 
                                   "DEPT_NAME", "SHORT_NAME", "HAS_DUIC", 
@@ -490,51 +504,28 @@ def gen_aos_hduic_templets():
     aos_hduic_templets["AUTH_MIL"] = 0
     aos_hduic_templets["TEMPLET_QTY"] = 0
     aos_hduic_templets.set_index("UIC", drop = False, inplace = True)
-    
-    if (debug_uic in aos_hduic_templets.UIC.tolist()):
-        print(debug_uic + " is in aos_hduic_templets dataframe")
-    else:
-        print(debug_uic + " not in aos_hduic_templets dataframe")
-    
-    if (EXPORT): aos_hduic_templets.to_csv("./export/diagnosis_aoshduictemplets" + TIMESTAMP + ".csv")
-    
+        
     fms_auths_templets = fms_uic[["LOWEST_UIC", "AUTHMIL", "TEMPLET_QTY", "IN_AOS"]]
     fms_auths_templets.set_index("LOWEST_UIC", drop = False, inplace = True)
     
-    if (debug_uic in fms_auths_templets.LOWEST_UIC.tolist()):
-        print(debug_uic + " is in fms_auths_templets")
-    else:
-        print(debug_uic + " not in fms_auths_templets")
-    
-    if (EXPORT): fms_auths_templets.to_csv("./export/diagnosis_fmsauthstemplets" + TIMESTAMP + ".csv")   
-    
-    for row in aos_hduic_templets.itertuples():
-        #if (not pd.isna(row.UIC) and row.UIC in fms_auths_templets.index.tolist()):
-        if (row.Index == debug_uic): 
-            print("Iterating over " + debug_uic) 
-            is_debug_uic = True
+    exception_count = 0
 
+    for row in aos_hduic_templets.itertuples():
         try:
             if (fms_auths_templets.AUTHMIL.loc[row.Index] > 0):
                 aos_hduic_templets.at[row.Index, "AUTH_MIL"] = (
                         fms_auths_templets.loc[row.UIC].AUTHMIL)
                 aos_hduic_templets.at[row.Index, "TEMPLET_QTY"] = (
                         fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
-                if (is_debug_uic): print(debug_uic + " passed fms auths > 0 check")
-        except:
-            if (is_debug_uic): 
-                print("WG2CA0 Failed isna and infms check")
-                is_debug_uic = False
-        
-    if (debug_uic in aos_hduic_templets.UIC.tolist()):
-        print (debug_uic + " is in aos_hduic_templets dataframe")
-    else:
-        print (debug_uic + " not in aos_hduic_templets datframe")
+        except Exception as exc:
+            exception_count += 1
+            print(exc)
     
     print("Finished generating templets\n" +
           "AUTHs in FMS file: " + str(fms_uic.AUTHMIL.sum()) + "\n" +
           "AUTHS in TMP file: " + str(aos_hduic_templets.AUTH_MIL.sum()) + "\n" +
           "            Delta: " + str(fms_uic.AUTHMIL.sum() - aos_hduic_templets.AUTH_MIL.sum()))
+    print("Exception count: " + str(exception_count))
 
     #return aos_hduic_templets.where(aos_hduic_templets.AUTH_MIL > 0).dropna()
     return aos_hduic_templets.where(
