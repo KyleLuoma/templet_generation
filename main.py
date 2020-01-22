@@ -17,7 +17,7 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-EXPORT = True
+EXPORT = False
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
 TEMPLET_GEN_RULE = "TEMPLET_QTY" #Options: TEMPLET_QTY, EMILPO_ADJUSTED_TEMPLET_QTY
@@ -42,7 +42,7 @@ def main():
     prepare_HD_map()
     prepare_uic_ouid_map()
     aos_uic = prepare_aos_uic_file()
-    prepare_drrsa_uic_file()
+    prepare_drrsa_uic_file(assume_hsduic = True)
     prepare_emilpo_uic_file()
     
     """ Analyze """
@@ -293,8 +293,15 @@ Relies on global dataframe drrsa_uic
 File provided by Jin Kang-Mo 
 Export of all UICs for COMPO 1 stored in DRRS-A
 """
-def prepare_drrsa_uic_file():
+def prepare_drrsa_uic_file(assume_hsduic = False):
     drrsa_uic["UIC_PUD"] = drrsa_uic.UIC
+    
+    if (assume_hsduic):
+        drrsa_uic['HSDUIC'] = 'N'
+        drrsa_uic['HSDUIC'] = drrsa_uic.apply(
+                lambda row: 'Y' if row['UIC'][4:6] in HD_map['HDUIC'].tolist() else 'N',
+                axis = 1
+                )
     
     for row in drrsa_uic.itertuples():
         drrsa_uic.at[row.Index, 'UIC_PUD'] = row.UIC[0:4]

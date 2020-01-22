@@ -10,7 +10,7 @@ import pandas as pd
 
 """ Retrieve the DRRSA UIC / Location file """
 def load_drrsa_file():
-    return pd.read_csv("./data/drrsa_uic_locations.csv")
+    return pd.read_csv("./data/DRRSA_Data_20200114.csv")
 
 """ Retrieve consolidated AOS UIC export file """
 def load_aos_file():
