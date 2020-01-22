@@ -297,8 +297,8 @@ def prepare_drrsa_uic_file(assume_hsduic = False):
     drrsa_uic["UIC_PUD"] = drrsa_uic.UIC
     
     if (assume_hsduic):
-        drrsa_uic['HSDUIC'] = 'N'
-        drrsa_uic['HSDUIC'] = drrsa_uic.apply(
+        drrsa_uic['HSUIC_FLAG'] = 'N'
+        drrsa_uic['HSUIC_FLAG'] = drrsa_uic.apply(
                 lambda row: 'Y' if row['UIC'][4:6] in HD_map['HDUIC'].tolist() else 'N',
                 axis = 1
                 )

@@ -33,15 +33,21 @@ def load_aos_file():
 
 """ Retrieve FMS UIC Rollup with Military Authorizations """
 def load_fms_file():
-    return pd.read_csv("./data/FY21_AC_UIC_and_SUBCO_UIC_Rollup.csv")
+    return pd.read_csv("./data/FY21_AC_UIC_and_SUBCO_UIC_Rollup.csv").append(
+            pd.read_csv("./data/FY21_RC_UIC_and_SUBCO_UIC_Rollup.csv")
+            )
 
 """ Retrieve previous FY FMS UIC Rollup with Military Authorizations"""
 def load_prev_fms_file():
-    return pd.read_csv("./data/FY20_AC_UIC_and_SUBCO_UIC_Rollup.csv")
+    return pd.read_csv("./data/FY20_AC_UIC_and_SUBCO_UIC_Rollup.csv").append(
+            pd.read_csv("./data/FY20_RC_UIC_and_SUBCO_UIC_Rollup.csv")
+            )
 
 """ Retrieve FMS LDUIC Rollup with Military Authorizations """
 def load_fms_lduic_file():
-    return pd.read_csv("./data/FY21 AC LDUIC Rollup.csv")
+    return pd.read_csv("./data/FY21 AC LDUIC Rollup.csv").append(
+            pd.read_csv("./data/FY21 RC LDUIC Rollup.csv")
+            )
 
 """ Retrieve AA / SUBCODE to HD map """
 def load_HD_map():
@@ -49,7 +55,9 @@ def load_HD_map():
 
 """ Retrieve EMILPO assignment rollup file """
 def load_emilpo():
-    return pd.read_csv("./data/emilpo_assigned_excess_01142020.csv")
+    return pd.read_csv("./data/emilpo_assigned_excess_01142020.csv").append(
+            pd.read_csv("./data/rcms_assigned_excess_01132020.csv")
+            )
 
 """ Retrieve AOS UIC OUID Crosswalk """
 def load_uic_ouids():
