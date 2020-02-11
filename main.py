@@ -363,7 +363,7 @@ def aos_drrsa_hduic_check():
     return missing_uics.where(missing_uics.EXPECTED_HDUIC != "").dropna()
 
 """
-Relies on global dataframe aos_uic
+Relies on global dataframe aos_uic and uic_ouid
 Checks if the expected DUIC in AOS also exists as a UIC in AOS
 Returns: dataframe consisting of the AOS UICs that do not have HSDUICs in AOS
 """
