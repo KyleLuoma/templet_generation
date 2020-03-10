@@ -54,8 +54,27 @@ def load_HD_map():
     return pd.read_csv("./data/UIC_HD_MAP.csv")
 
 """ Retrieve EMILPO assignment rollup file """
+#UIC,PARENT_UIC,CMD,IN_AUTH,ASSIGNED,EXCESS
 def load_emilpo():
-    return pd.read_csv("./data/emilpo_assigned_excess_01142020.csv").append(
+    emilpo = pd.read_csv("./data/EMILPO_ASSIGNMENTS_3-3-20.csv")
+    emilpo_rollup = (
+            emilpo[["UIC_CD", "PARENT_UIC_CD", "STRUC_CMD_CD", 
+                    "SSN_MASK_HASH", "PARNO", "MIL_POSN_RPT_NR"]]
+            .groupby(["UIC_CD", "PARENT_UIC_CD", "STRUC_CMD_CD"])
+            .count()
+            .reset_index()
+            .rename(columns = {
+                    "UIC_CD" : "UIC",
+                    "SSN_MASK_HASH" : "ASSIGNED",
+                    "PARNO" : "IN_AUTH",
+                    "MIL_POSN_RPT_NR" : "EXCESS",
+                    "PARENT_UIC_CD" : "PARENT_UIC",
+                    "STRUC_CMD_CD" : "CMD"
+                    }
+        )
+    )
+    
+    return emilpo_rollup.append(
             pd.read_csv("./data/rcms_assigned_excess_01132020.csv")
             )
 

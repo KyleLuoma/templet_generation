@@ -17,9 +17,9 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
-LOAD = False
-TRANSFORM = False
-EXPORT = False
+LOAD = True
+TRANSFORM = True
+EXPORT = True
 METRICS = True
 TEMPLET_GEN = False
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
