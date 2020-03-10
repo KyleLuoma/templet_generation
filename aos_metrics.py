@@ -161,7 +161,7 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping, time_string):
     #Generate count of AOS UICs that expect HSDUICs not registered in DRRSA
     metrics = metrics.join(
             aos_uic[[grouping, "HAS_DUIC"]].where(
-                    aos_uic.HAS_DUIC == False
+                    ~aos_uic.HAS_DUIC & ~aos_uic.IN_DRRSA 
                     ).groupby(grouping).count(),
                     lsuffix = "_left",
                     rsuffix = "_right"
@@ -174,7 +174,7 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping, time_string):
     #Generate count of AOS UICs that have HSDUICs in AOS
     metrics = metrics.join(
             aos_uic[[grouping, "HDUIC_IN_AOS"]].where(
-                    (aos_uic.EXPECTED_HDUIC != False) & (aos_uic.HDUIC_IN_AOS == True)
+                    (aos_uic.HAS_DUIC) & (aos_uic.HDUIC_IN_AOS)
                     ).groupby(grouping).count(),
                     lsuffix = "_left",
                     rsuffix = "_right"
@@ -183,7 +183,7 @@ def generate_dq_metrics(emilpo_uic, fms_lduic, aos_uic, grouping, time_string):
     #Generate count of AOS UICs that do not have HSDUICs in AOS
     metrics = metrics.join(
             aos_uic[[grouping, "HDUIC_IN_AOS"]].where(
-                    (aos_uic.EXPECTED_HDUIC != False) & (aos_uic.HDUIC_IN_AOS == False)
+                    (aos_uic.HAS_DUIC) & (~aos_uic.HDUIC_IN_AOS)
                     ).groupby(grouping).count(),
                     lsuffix = "_left",
                     rsuffix = "_right"

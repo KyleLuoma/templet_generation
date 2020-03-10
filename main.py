@@ -17,7 +17,11 @@ import aos_metrics
 TEMPLET_PERCENT = 0.15
 MIN_TEMPLETS = 3
 TIMESTAMP = utility.get_file_timestamp()
+LOAD = False
+TRANSFORM = False
 EXPORT = False
+METRICS = True
+TEMPLET_GEN = False
 LOCATION_EXEMPT_SUBCODES = ["95", "96", "99", "FF"]
 NON_COMMAND_CODE = "99"
 TEMPLET_GEN_RULE = "TEMPLET_QTY" #Options: TEMPLET_QTY, EMILPO_ADJUSTED_TEMPLET_QTY
@@ -28,22 +32,24 @@ def main():
     emilpo_uic, templet_short, fms_lduic, lduic_assignment_rollup, dq_metrics, uic_ouid
     
     """ Load """
-    aos_uic = load_data.load_aos_file()
-    uic_ouid = load_data.load_uic_ouids()
-    drrsa_uic = load_data.load_drrsa_file()
-    fms_uic = load_data.load_fms_file()
-    fms_uic_prev = load_data.load_prev_fms_file()
-    fms_lduic = load_data.load_fms_lduic_file()
-    HD_map = load_data.load_HD_map()
-    emilpo_uic = load_data.load_emilpo()
+    if(LOAD):
+        aos_uic = load_data.load_aos_file()
+        uic_ouid = load_data.load_uic_ouids()
+        drrsa_uic = load_data.load_drrsa_file()
+        fms_uic = load_data.load_fms_file()
+        fms_uic_prev = load_data.load_prev_fms_file()
+        fms_lduic = load_data.load_fms_lduic_file()
+        HD_map = load_data.load_HD_map()
+        emilpo_uic = load_data.load_emilpo()
     
     """ Transform """
-    fms_uic = prepare_fms_file(fms_uic, fms_uic_prev)
-    prepare_HD_map()
-    prepare_uic_ouid_map()
-    aos_uic = prepare_aos_uic_file()
-    prepare_drrsa_uic_file(assume_hsduic = True)
-    prepare_emilpo_uic_file()
+    if(TRANSFORM):
+        fms_uic = prepare_fms_file(fms_uic, fms_uic_prev)
+        prepare_HD_map()
+        prepare_uic_ouid_map()
+        aos_uic = prepare_aos_uic_file()
+        prepare_drrsa_uic_file(assume_hsduic = True)
+        prepare_emilpo_uic_file()
     
     """ Analyze """
     hduic_index = make_drrsa_hduic_index(PUD_ONLY = False)
@@ -54,17 +60,19 @@ def main():
     hduics_not_in_aos = aos_aos_hduic_check()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
-    lduic_assignment_rollup = rollup_lduic_assignments()
-    aos_hduic_templets = gen_aos_hduic_templets()
-    templet_rejects = fms_uic_not_in_templet_file()
-    templet_short = emilpo_assigned_delta()
-    dq_metrics = aos_metrics.generate_dq_metrics(
-            emilpo_uic, 
-            fms_lduic, 
-            aos_uic,
-            "CMD",
-            utility.get_local_time_as_string()
-            )
+    if(METRICS):
+        dq_metrics = aos_metrics.generate_dq_metrics(
+                emilpo_uic, 
+                fms_lduic, 
+                aos_uic,
+                "CMD",
+                utility.get_local_time_as_string()
+                )
+    if(TEMPLET_GEN):
+        lduic_assignment_rollup = rollup_lduic_assignments()
+        aos_hduic_templets = gen_aos_hduic_templets()
+        templet_rejects = fms_uic_not_in_templet_file()
+        templet_short = emilpo_assigned_delta()
     
     """ Export """
     if(EXPORT):
@@ -456,14 +464,18 @@ Must be run after emilpo_uic_not_in_aos_fms_drrsa() function
 def rollup_lduic_assignments():
     lduic_assignment_rollup = fms_uic[["LOWEST_UIC", "CMD"]].copy(deep = True)
     lduic_assignment_rollup.set_index("LOWEST_UIC", drop = False, inplace = True)
-    lduic_assignment_rollup["LDUIC_AUTH"] = 0
-    lduic_assignment_rollup["LDUIC_ASSIGNED_TOT"] = 0
-    lduic_assignment_rollup["LDUIC_ASSIGNED_AUTH"] = 0
-    lduic_assignment_rollup["LDUIC_ASSIGNED_EXCESS"] = 0
+    lduic_assignment_rollup["LDUIC_AUTH"] = 0.0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_TOT"] = 0.0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_AUTH"] = 0.0
+    lduic_assignment_rollup["LDUIC_ASSIGNED_EXCESS"] = 0.0
     lduic_assignment_rollup["LDUIC_PARENT_IN_AOS"] = False
     lduic_assignment_rollup["LDUIC_PARENT_IN_FMS"] = False
     
-    assigned_sum = 0
+    assigned_sum = 0.0
+    keyerrors = 0
+    valerrors = 0
+    
+    print("Rolling up LDUIC assignments numbers into AA or subcode quantities")
     
     for row in fms_lduic.itertuples():
         if (row.Index in emilpo_uic.UIC.tolist() and 
@@ -476,8 +488,10 @@ def rollup_lduic_assignments():
                         emilpo_uic.loc[row.Index].IN_AUTH)
                 lduic_assignment_rollup.at[row.LOWEST_UIC, "LDUIC_ASSIGNED_EXCESS"] += (
                         emilpo_uic.loc[row.Index].EXCESS)
-            except:
-                print("Encountered exception in rollup_lduic_assignments function")
+            except KeyError:
+                keyerrors += 1
+            except ValueError:
+                valerrors += 1
         
     for row in lduic_assignment_rollup.itertuples():
         try:
@@ -485,10 +499,13 @@ def rollup_lduic_assignments():
                     row.LOWEST_UIC in aos_uic.UIC.tolist())
             lduic_assignment_rollup.at[row.Index, "LDUIC_PARENT_IN_FMS"] = (
                     row.LOWEST_UIC in fms_uic.LOWEST_UIC.tolist())
-        except:
-            print("Encountered exception in lduic assignment rollup.")
+        except KeyError:
+            keyerrors += 1
+        except ValueError:
+            valerrors += 1
     
     print("rollup_lduic_assignmen sum = : " + str(assigned_sum))
+    print("Encountered", str(keyerrors), "Key errors and", str(valerrors), "value errors.")
     return lduic_assignment_rollup
 
 """
@@ -519,7 +536,7 @@ def gen_aos_hduic_templets():
                         fms_auths_templets.loc[row.UIC].TEMPLET_QTY)
         except Exception as exc:
             exception_count += 1
-            print(exc)
+            
     
     print("Finished generating templets\n" +
           "AUTHs in FMS file: " + str(fms_uic.AUTHMIL.sum()) + "\n" +
