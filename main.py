@@ -60,6 +60,7 @@ def main():
     hduics_not_in_aos = aos_aos_hduic_check()
     aos_uics_not_in_fms = aos_uic_not_in_fms()
     emilpo_uics_not_in_aos_fms_drrsa = emilpo_uic_not_in_aos_fms_drrsa()
+    
     if(METRICS):
         dq_metrics = aos_metrics.generate_dq_metrics(
                 emilpo_uic, 
@@ -68,29 +69,8 @@ def main():
                 "CMD",
                 utility.get_local_time_as_string()
                 )
-    if(TEMPLET_GEN):
-        lduic_assignment_rollup = rollup_lduic_assignments()
-        aos_hduic_templets = gen_aos_hduic_templets()
-        templet_rejects = fms_uic_not_in_templet_file()
-        templet_short = emilpo_assigned_delta()
-    
-    """ Export """
-    if(EXPORT):
-        missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos"       + TIMESTAMP + ".csv")
-        fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos"       + TIMESTAMP + ".csv")
-        fms_lduics_not_in_aos.to_csv("./export/fms_lduic_not_in_aos"   + TIMESTAMP + ".csv")
-        aos_uics_not_in_drrsa.to_csv("./export/aos_uic_not_in_drrsa"   + TIMESTAMP + ".csv")
-        hduics_not_in_aos.to_csv("./export/hduics_not_in_aos"          + TIMESTAMP + ".csv")
-        aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms"       + TIMESTAMP + ".csv")
-        emilpo_uics_not_in_aos_fms_drrsa.to_csv("./export/emilpo_uic_not_in_aos" + TIMESTAMP + ".csv")
-        aos_hduic_templets.to_csv("./export/aos_hduic_templts"         + TIMESTAMP + ".csv")
-        templet_rejects.to_csv("./export/templet_reject_report"        + TIMESTAMP + ".csv")
-        fms_uic.to_csv("./export/fms_uic"                              + TIMESTAMP + ".csv")
-        aos_uic.to_csv("./export/aos_uic"                              + TIMESTAMP + ".csv")
-        drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
-        emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
-        lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
-        dq_metrics.rename(
+        if(EXPORT):
+            dq_metrics.rename(
                 columns = {
                         "EMILPO_UIC_IN_DRRSA" : "HRIS_UIC_IN_DRRSA",
                         "EMILPO_ASSIGNED" : "HRIS_ASSIGNED",
@@ -107,25 +87,51 @@ def main():
                         "EMILPO_ASSIGNED_TO_UIC_NOT_IN_AOS" : "HRIS_ASSIGNED_TO_UIC_NOT_IN_AOS"
                         }
                 ).to_csv("./export/dq_metrics"                         + TIMESTAMP + ".csv")
-        aos_hduic_templets[[
-                "EXPECTED_HDUIC", 
-                "HAS_DUIC", 
-                "UIC", 
-                "OUID", 
-                "S_DATE", 
-                "T_DATE",
-                TEMPLET_GEN_RULE
-                ]].where(aos_uic.HAS_DUIC == True).dropna().rename(
-                    columns = {
-                            "EXPECTED_HDUIC" : "HSDUIC",
-                            "HAS_DUIC" : "HSDUIC_REGISTERED",
-                            "UIC" : "PARENT_UIC",
-                            "OUID" : "PARENT_OUID",
-                            TEMPLET_GEN_RULE : "STANDARD_EXCESS"
-                            }
-                ).to_csv(
-                "./export/hsduic_templet_generation"                            + TIMESTAMP + ".csv"
-                )
+        
+            
+    if(TEMPLET_GEN):
+        lduic_assignment_rollup = rollup_lduic_assignments()
+        aos_hduic_templets = gen_aos_hduic_templets()
+        templet_rejects = fms_uic_not_in_templet_file()
+        templet_short = emilpo_assigned_delta()
+        if(EXPORT):
+            lduic_assignment_rollup.to_csv("./export/lduic_assignments"    + TIMESTAMP + ".csv")
+            aos_hduic_templets.to_csv("./export/aos_hduic_templts"         + TIMESTAMP + ".csv")
+            templet_rejects.to_csv("./export/templet_reject_report"        + TIMESTAMP + ".csv")
+            aos_hduic_templets[[
+                            "EXPECTED_HDUIC", 
+                            "HAS_DUIC", 
+                            "UIC", 
+                            "OUID", 
+                            "S_DATE", 
+                            "T_DATE",
+                            TEMPLET_GEN_RULE
+                            ]].where(aos_uic.HAS_DUIC == True).dropna().rename(
+                                columns = {
+                                        "EXPECTED_HDUIC" : "HSDUIC",
+                                        "HAS_DUIC" : "HSDUIC_REGISTERED",
+                                        "UIC" : "PARENT_UIC",
+                                        "OUID" : "PARENT_OUID",
+                                        TEMPLET_GEN_RULE : "STANDARD_EXCESS"
+                                        }
+                            ).to_csv(
+                            "./export/hsduic_templet_generation"       + TIMESTAMP + ".csv"
+                            )
+    
+    """ Export """
+    if(EXPORT):     
+        missing_aos_duic.to_csv("./export/drrsa_duic_not_in_aos"       + TIMESTAMP + ".csv")
+        fms_uics_not_in_aos.to_csv("./export/fms_uic_not_in_aos"       + TIMESTAMP + ".csv")
+        fms_lduics_not_in_aos.to_csv("./export/fms_lduic_not_in_aos"   + TIMESTAMP + ".csv")
+        aos_uics_not_in_drrsa.to_csv("./export/aos_uic_not_in_drrsa"   + TIMESTAMP + ".csv")
+        hduics_not_in_aos.to_csv("./export/hduics_not_in_aos"          + TIMESTAMP + ".csv")
+        aos_uics_not_in_fms.to_csv("./export/aos_uic_not_in_fms"       + TIMESTAMP + ".csv")
+        emilpo_uics_not_in_aos_fms_drrsa.to_csv("./export/emilpo_uic_not_in_aos" + TIMESTAMP + ".csv")
+        fms_uic.to_csv("./export/fms_uic"                              + TIMESTAMP + ".csv")
+        aos_uic.to_csv("./export/aos_uic"                              + TIMESTAMP + ".csv")
+        drrsa_uic.to_csv("./export/drrsa_uic"                          + TIMESTAMP + ".csv")
+        emilpo_uic.to_csv("./export/emilpo_uic"                        + TIMESTAMP + ".csv")
+        
 
 """
 Relies on global dataframe fms_uic and fms_lduic
@@ -377,7 +383,7 @@ Returns: dataframe consisting of the AOS UICs that do not have HSDUICs in AOS
 """
 def aos_aos_hduic_check():
     aos_uic['HDUIC_IN_AOS'] = False
-    aos_uic.HDUIC_IN_AOS = aos_uic.EXPECTED_HDUIC.isin(uic_ouid.index)
+    aos_uic.HDUIC_IN_AOS = aos_uic.EXPECTED_HDUIC.isin(aos_uic.UIC)
     return aos_uic.where(aos_uic.HDUIC_IN_AOS == False).dropna()
 
 """
