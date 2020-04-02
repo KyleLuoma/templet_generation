@@ -110,8 +110,28 @@ def load_emilpo():
     )
     
     return emilpo_rollup.append(
-            pd.read_csv("./data/rcms_assigned_excess_01132020.csv")
+            load_rcms("RAVALA")
             )
+    
+def load_rcms(file_format = "RAVALA"):
+    file = "./data/rcms_assigned_excess_01302020.csv"
+    rcms = pd.read_csv(file)
+    if(str.upper(file_format) == "RAVALA"):
+        rcms = rcms[["UIC", "Unit Assigned Strength", "Excess"]].rename(
+                columns = {
+                            "Unit Assigned Strength" : "ASSIGNED",
+                            "Excess" : "EXCESS"
+                        }
+                )
+        rcms["CMD"] = "AR"
+        rcms["EXCESS"] = rcms.apply(
+                    lambda row: row["EXCESS"] if row["EXCESS"] >= 0 else 0,
+                    axis = 1
+                )
+        rcms["IN_AUTH"] = rcms["ASSIGNED"] - rcms["EXCESS"]
+    return rcms
+
+
 
 """ Retrieve AOS UIC OUID Crosswalk """
 def load_uic_ouids():
