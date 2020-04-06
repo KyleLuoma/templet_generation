@@ -15,8 +15,9 @@ def load_drrsa_file():
 """ Retrieve seperate AOS UIC export files and consolidate """
 def load_aos_file():
     return (
-            pd.read_csv(
-            "./data/uic_trees/W00EFF C2 UIC TREE 3-12-2021 UAT.csv",
+            pd.read_excel(
+            "./data/uic_trees/W00EFF C2 UIC TREE 4-6-2021.xlsx",
+            header = 2,
             dtype = {
                     "HOGEO" : str,
                     "STACO" : str,
@@ -29,10 +30,12 @@ def load_aos_file():
                     "PH_POSTAL_CODE_TXT" : str,
                     "PH_CITY_TXT" : str,
                     "PH_COUNTRY_TXT" : str
-                    }
+                    },
+            skipfooter = 1            
             ).fillna("").append(
-            pd.read_csv(
-            "./data/uic_trees/WARCFF C2 UIC TREE 3-12-21 UAT.csv",
+            pd.read_excel(
+            "./data/uic_trees/WARCFF C2 UIC TREE 4-6-2021.xlsx",
+            header = 2,
             dtype = {
                     "HOGEO" : str,
                     "STACO" : str,
@@ -45,10 +48,12 @@ def load_aos_file():
                     "PH_POSTAL_CODE_TXT" : str,
                     "PH_CITY_TXT" : str,
                     "PH_COUNTRY_TXT" : str
-                    }
+                    },
+            skipfooter = 1
             ).fillna("")).append(
-            pd.read_csv(
-            "./data/uic_trees/WSTAFF C2 UIC TREE 3-12-21 UAT.csv",
+            pd.read_excel(
+            "./data/uic_trees/WSTAFF C2 UIC TREE 4-6-2021.xlsx",
+            header = 2,
             dtype = {
                     "HOGEO" : str,
                     "STACO" : str,
@@ -61,7 +66,8 @@ def load_aos_file():
                     "PH_POSTAL_CODE_TXT" : str,
                     "PH_CITY_TXT" : str,
                     "PH_COUNTRY_TXT" : str
-                    }
+                    },
+            skipfooter = 1
             ).fillna("")
             )
     )
