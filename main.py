@@ -279,13 +279,13 @@ def prepare_aos_uic_file():
                       HD_map.loc[row.UIC[4:6]].HDUIC)
         
         #Check that ALL required data fields have data:
-        aos_uic.at[row.Index, "LOCATION_DATA_COMPLETE"] = ~(
-                len(aos_uic.loc[row.Index].HOGEO) == 0 and
-                aos_uic.loc[row.Index].STACO == "" and
-                aos_uic.loc[row.Index].PH_GEO_TXT == "" and
-                aos_uic.loc[row.Index].PH_POSTAL_CODE_TXT == "" and
-                aos_uic.loc[row.Index].PH_CITY_TXT == "" and
-                aos_uic.loc[row.Index].PH_COUNTRY_TXT == ""
+        aos_uic.at[row.Index, "LOCATION_DATA_COMPLETE"] = (
+                len(aos_uic.loc[row.Index].HOGEO) > 0 and
+                len(aos_uic.loc[row.Index].STACO) > 0 and
+                len(aos_uic.loc[row.Index].PH_GEO_TXT) > 0 and
+                len(aos_uic.loc[row.Index].PH_POSTAL_CODE_TXT) > 0 and
+                len(aos_uic.loc[row.Index].PH_CITY_TXT) > 0 and
+                len(aos_uic.loc[row.Index].PH_COUNTRY_TXT) > 0
                 )
         
         has_uic = True        
