@@ -11,9 +11,11 @@ import pandas as pd
 DRRSA = "DRRSA_Data_20200114.csv"
 RCMS = "rcms_UIC_assigned_excess_04302020.csv"
 EMILPO = "EMILPO_ASSIGNMENTS_3-3-20.csv"
-AOS_W00EFF = "W00EFF C2 UIC TREE 6-4-2021.xlsx"
-AOS_WARCFF = "WARCFF C2 UIC TREE 6-4-2021.xlsx"
-AOS_WSTAFF = "WSTAFF C2 UIC TREE 6-4-2021.xlsx"
+AOS_W00EFF = "W00EFF C2 UIC TREE 6-10-2021.xlsx"
+AOS_WARCFF = "WARCFF C2 UIC TREE 6-10-2021.xlsx"
+AOS_WSTAFF = "WSTAFF C2 UIC TREE 6-10-2021.xlsx"
+AOS_WUSAFF = "WUSAFF C2 UIC TREE 6-10-2021.xlsx"
+
 FILEPATH = "X:/AOS/master_files/"
 
 """ Retrieve the DRRSA UIC / Location file """
@@ -61,6 +63,25 @@ def load_aos_file():
             ).fillna("")).append(
             pd.read_excel(
             FILEPATH + "aos/uic_tree/" + AOS_WSTAFF,
+            header = 2,
+            dtype = {
+                    "HOGEO" : str,
+                    "STACO" : str,
+                    "PH_RSDNC_TXT" : str,
+                    "PH_STREET_TXT" : str,
+                    "PH_STREET_ADDTNL_TXT" : str,
+                    "PH_POSTAL_BOX_TXT" : str,
+                    "PH_POSTBOX_ID_TXT" : str,
+                    "PH_GEO_TXT" : str,
+                    "PH_POSTAL_CODE_TXT" : str,
+                    "PH_CITY_TXT" : str,
+                    "PH_COUNTRY_TXT" : str
+                    },
+            skipfooter = 1
+            ).fillna("")
+            ).append(
+            pd.read_excel(
+            FILEPATH + "aos/uic_tree/" + AOS_WUSAFF,
             header = 2,
             dtype = {
                     "HOGEO" : str,
